@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Stat Lab Preview</title>
+    <style>
+      :root {
+        --ink: #172027;
+        --muted: #5e6b75;
+        --soft: #eef5f7;
+        --line: #d8e0e6;
+        --teal: #0f8b8d;
+        --coral: #f25f5c;
+        --gold: #f4b942;
+        --blue: #3a6ea5;
+        --green: #2f9e44;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 8% 18%, rgba(244, 185, 66, 0.24), transparent 360px),
+          radial-gradient(circle at 92% 10%, rgba(15, 139, 141, 0.22), transparent 330px),
+          linear-gradient(135deg, #f7faf9, #eaf1f4);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .poster {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 34px;
+        width: 100%;
+        height: 100%;
+        padding: 52px;
+      }
+
+      .copy {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      .eyebrow {
+        color: var(--teal);
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 12px 0 18px;
+        max-width: 620px;
+        font-size: 76px;
+        line-height: 0.93;
+        letter-spacing: 0;
+      }
+
+      p {
+        max-width: 560px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 25px;
+        line-height: 1.35;
+        font-weight: 650;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 28px;
+      }
+
+      .chips span {
+        padding: 10px 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--ink);
+        font-weight: 850;
+      }
+
+      .dashboard {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 18px;
+        align-content: center;
+      }
+
+      .card {
+        min-height: 182px;
+        padding: 22px;
+        border: 1px solid rgba(216, 224, 230, 0.96);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 20px 50px rgba(23, 32, 39, 0.14);
+      }
+
+      .card h2 {
+        margin: 0 0 14px;
+        font-size: 20px;
+      }
+
+      .coin {
+        width: 92px;
+        height: 92px;
+        border: 9px solid #d49322;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 35% 25%, #ffe49a, #f4b942 55%, #c88117);
+        color: #6b4300;
+        font-size: 42px;
+        font-weight: 1000;
+      }
+
+      .bars {
+        display: flex;
+        align-items: end;
+        gap: 8px;
+        height: 94px;
+      }
+
+      .bars span {
+        flex: 1;
+        border-radius: 5px 5px 0 0;
+        background: var(--blue);
+      }
+
+      .bars span:nth-child(4),
+      .bars span:nth-child(5) {
+        background: var(--coral);
+      }
+
+      .people {
+        display: grid;
+        grid-template-columns: repeat(9, 1fr);
+        gap: 7px;
+      }
+
+      .people span,
+      .points span {
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background: var(--blue);
+      }
+
+      .people span:nth-child(5),
+      .people span:nth-child(14),
+      .people span:nth-child(21) {
+        background: var(--coral);
+        box-shadow: 0 0 0 6px rgba(242, 95, 92, 0.18);
+      }
+
+      .points {
+        position: relative;
+        height: 116px;
+        border: 3px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .points::before {
+        position: absolute;
+        left: -3px;
+        bottom: -3px;
+        width: 116px;
+        height: 116px;
+        border: 4px solid var(--ink);
+        border-radius: 50%;
+        content: "";
+      }
+
+      .points span {
+        position: absolute;
+        width: 9px;
+        background: var(--teal);
+      }
+
+      .points span:nth-child(3n) {
+        background: var(--coral);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="poster">
+      <section class="copy">
+        <div class="eyebrow">Interactive statistics studio</div>
+        <h1>Stat Lab</h1>
+        <p>Animated probability simulations for coins, dice, birthdays, medical tests, and Monte Carlo pi.</p>
+        <div class="chips">
+          <span>Live charts</span>
+          <span>Real-world stats</span>
+          <span>Built for learning</span>
+        </div>
+      </section>
+      <section class="dashboard" aria-label="Statistics concept previews">
+        <div class="card">
+          <h2>Law of large numbers</h2>
+          <div class="coin">H</div>
+        </div>
+        <div class="card">
+          <h2>Three dice distribution</h2>
+          <div class="bars">
+            <span style="height:22%"></span><span style="height:40%"></span><span style="height:62%"></span><span style="height:88%"></span><span style="height:92%"></span><span style="height:70%"></span><span style="height:42%"></span>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Birthday paradox</h2>
+          <div class="people">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Monte Carlo pi</h2>
+          <div class="points">
+            <span style="left:12%;top:68%"></span><span style="left:28%;top:44%"></span><span style="left:62%;top:22%"></span><span style="left:46%;top:72%"></span><span style="left:78%;top:55%"></span><span style="left:22%;top:18%"></span><span style="left:70%;top:76%"></span><span style="left:54%;top:40%"></span><span style="left:88%;top:18%"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
