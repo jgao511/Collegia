@@ -2,7 +2,7 @@
 
 An AI-powered college application profile analysis platform that helps students evaluate their academic profile, extracurriculars, and overall fit for universities across the United States.
 
-Live Demo: [https://jgao511.github.io/Collegia/](jgao511.github.io/Collegia/)
+Live Demo: [https://jgao511.github.io/Collegia/](https://jgao511.github.io/Collegia/)
 
 ---
 
@@ -280,7 +280,7 @@ npm run build
 The project is currently deployed using GitHub Pages.
 
 Live site:
-[https://jgao511.github.io/Collegia/](jgao511.github.io/Collegia/)
+[https://jgao511.github.io/Collegia/](https://jgao511.github.io/Collegia/)
 
 ---
 
