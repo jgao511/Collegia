@@ -28,6 +28,80 @@ const ACTIVITY_GROUPS = {
   "Special Interests & Leadership": ["Computer/Technology", "LGBT", "Student Government/Politics", "Family Responsibilities", "Entrepreneurship", "Paid Work"],
 };
 
+const AP_COURSES = [
+  "AP 2-D Art and Design", "AP 3-D Art and Design", "AP African American Studies", "AP Art History", "AP Biology",
+  "AP Calculus AB", "AP Calculus BC", "AP Chemistry", "AP Chinese Language and Culture", "AP Comparative Government and Politics",
+  "AP Computer Science A", "AP Computer Science Principles", "AP Drawing", "AP English Language and Composition",
+  "AP English Literature and Composition", "AP Environmental Science", "AP European History", "AP French Language and Culture",
+  "AP German Language and Culture", "AP Human Geography", "AP Italian Language and Culture", "AP Japanese Language and Culture",
+  "AP Latin", "AP Macroeconomics", "AP Microeconomics", "AP Music Theory", "AP Physics 1: Algebra-Based",
+  "AP Physics 2: Algebra-Based", "AP Physics C: Electricity and Magnetism", "AP Physics C: Mechanics", "AP Precalculus",
+  "AP Psychology", "AP Research", "AP Seminar", "AP Spanish Language and Culture", "AP Spanish Literature and Culture",
+  "AP Statistics", "AP United States Government and Politics", "AP United States History", "AP World History: Modern"
+];
+
+const IB_COURSES = [
+  "IB Biology", "IB Business Management", "IB Chemistry", "IB Classical Languages", "IB Computer Science", "IB Dance",
+  "IB Design Technology", "IB Digital Society", "IB Economics", "IB Environmental Systems and Societies", "IB Film",
+  "IB Geography", "IB Global Politics", "IB History", "IB Language A: Language and Literature", "IB Language A: Literature",
+  "IB Language B", "IB Mathematics: Analysis and Approaches", "IB Mathematics: Applications and Interpretation", "IB Music",
+  "IB Philosophy", "IB Physics", "IB Psychology", "IB Social and Cultural Anthropology", "IB Sports, Exercise and Health Science",
+  "IB Theatre", "IB Visual Arts", "IB World Religions"
+];
+
+const MAJOR_OPTIONS = {
+  engineeringCS: ["Electrical and Computer Engineering", "Computer Engineering", "Electrical Engineering", "Computer Science", "Software Engineering", "Mechanical Engineering", "Aerospace Engineering", "Civil Engineering", "Biomedical Engineering", "Chemical Engineering", "Industrial Engineering", "Data Science", "Artificial Intelligence", "Robotics"],
+  businessSocialScience: ["Economics", "Business", "Finance", "Accounting", "Marketing", "Entrepreneurship", "Management", "Political Science", "Public Policy", "International Relations", "Government", "Sociology", "Psychology"],
+  lifeSciencesHealth: ["Biology", "Biochemistry", "Neuroscience", "Pre-Med", "Public Health", "Nursing", "Biomedical Sciences", "Chemistry", "Environmental Science"],
+  humanitiesArtsMedia: ["English", "History", "Philosophy", "Journalism", "Communications", "Film", "Media Studies", "Design", "Theater", "Music", "Fine Arts", "Architecture"],
+  other: ["Education", "Mathematics", "Statistics", "Physics", "Undecided", "Other / Add custom major"]
+};
+
+const MAJOR_GUIDANCE = {
+  engineeringCS: {
+    fitLanguage: "technical depth, problem-solving, building, research, and applied STEM preparation",
+    evidenceToLookFor: ["calculus", "physics", "computer science", "coding", "circuits", "electronics", "robotics", "hardware", "AI", "research", "internships", "competitions", "independent technical builds", "maker projects", "GitHub or portfolio"],
+    relevantSchoolStrengthKeywords: ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Robotics", "AI", "Data Science"],
+    activityFraming: "Show evidence of building, testing, coding, designing, researching, or solving technical problems."
+  },
+  businessSocialScience: {
+    fitLanguage: "quantitative reasoning, social science curiosity, business awareness, policy thinking, leadership, and analytical decision-making",
+    evidenceToLookFor: ["statistics", "calculus", "economics coursework", "business coursework", "finance or investment experience", "entrepreneurship", "research", "data analysis", "debate", "model UN", "student government", "policy work", "leadership", "work experience"],
+    relevantSchoolStrengthKeywords: ["Economics", "Business", "Finance", "Political Science", "Public Policy", "International Relations", "Government", "Data Science"],
+    activityFraming: "Show evidence of analysis, leadership, markets, policy, entrepreneurship, research, or decision-making."
+  },
+  lifeSciencesHealth: {
+    fitLanguage: "science preparation, research mindset, service, healthcare exposure, and interest in biological or human systems",
+    evidenceToLookFor: ["biology", "chemistry", "physics", "statistics", "lab work", "research", "clinical volunteering", "shadowing", "public health", "science competitions", "healthcare service"],
+    relevantSchoolStrengthKeywords: ["Biology", "Pre-Med", "Public Health", "Neuroscience", "Biomedical Engineering", "Health Sciences", "Nursing"],
+    activityFraming: "Show evidence of scientific curiosity, research, service, healthcare exposure, or impact on people and communities."
+  },
+  humanitiesArtsMedia: {
+    fitLanguage: "writing, creativity, interpretation, communication, portfolio evidence, and original voice",
+    evidenceToLookFor: ["writing", "portfolio", "publications", "film projects", "performances", "journalism", "creative work", "research", "community arts", "design projects"],
+    relevantSchoolStrengthKeywords: ["English", "History", "Film", "Media", "Journalism", "Communications", "Design", "Theater", "Music", "Fine Arts"],
+    activityFraming: "Show evidence of original work, audience impact, communication, creativity, and sustained practice."
+  },
+  other: {
+    fitLanguage: "academic clarity, evidence of curiosity, and a coherent reason for the chosen path",
+    evidenceToLookFor: ["advanced coursework", "projects", "research", "leadership", "writing", "community impact"],
+    relevantSchoolStrengthKeywords: ["Research", "Interdisciplinary Studies", "Liberal Arts"],
+    activityFraming: "Show evidence that connects interests, coursework, and activities into a clear academic direction."
+  }
+};
+
+const SHORT_REPORT_SYSTEM_PROMPT = `
+You write concise college-fit reports from provided context only.
+Do not invent facts, rankings, admissions stats, policies, or programs.
+Do not dump raw data or repeat sections.
+Do not mention engineering/ECE advice unless majorCategory is engineeringCS.
+For businessSocialScience majors, focus on economics, business, policy, data, leadership, research, and quantitative reasoning.
+Omit empty optional sections.
+Keep the report short and readable.
+Use the requested section order.
+The disclaimer must appear once at the end.
+`;
+
 const holisticFactors = {
   "Rigor of secondary school record": "Very Important",
   "Class rank": "Considered",
@@ -81,6 +155,43 @@ const highlySelectiveFactors = {
   "Level of applicant's interest": "Not Considered",
 };
 
+const importanceMultipliers = {
+  "Very Important": 1,
+  "Important": 0.7,
+  "Considered": 0.35,
+  "Not Considered": 0,
+};
+
+// Common Data Set C7-style admissions factor ratings use these importance bands.
+// UC campuses should also be interpreted through comprehensive review context:
+// A-G GPA, course rigor, senior-year program quality, performance in context,
+// special talents, and life circumstances.
+// Adjust this object when the real school database grows. It is the bridge between
+// profile inputs and each college's CDS admissions factor importance ratings.
+const factorConfig = {
+  rigor: { label: "Rigor of secondary school record", category: "academic", profileField: "courseRigor", baseWeight: 0.2 },
+  classRank: { label: "Class rank", category: "academic", profileField: "classRank", baseWeight: 0.08 },
+  gpa: { label: "Academic Grade Point Average (GPA)", category: "academic", profileField: "gpa", baseWeight: 0.22 },
+  recommendations: { label: "Recommendations", category: "academic", profileField: "recommendations", baseWeight: 0.08 },
+  testScores: { label: "Standardized test scores", category: "academic", profileField: "testScores", baseWeight: 0.12 },
+  essay: { label: "Application essay", category: "academic", profileField: "essayStrength", baseWeight: 0.12 },
+  interview: { label: "Interview", category: "nonacademic", profileField: "interviewStrength", baseWeight: 0.04 },
+  extracurriculars: { label: "Extracurricular activities", category: "nonacademic", profileField: "extracurriculars", baseWeight: 0.1 },
+  talentAbility: { label: "Talent/ability", category: "nonacademic", profileField: "talentAbility", baseWeight: 0.06 },
+  characterPersonalQualities: { label: "Character/personal qualities", category: "nonacademic", profileField: "characterPersonalQualities", baseWeight: 0.08 },
+  volunteerWork: { label: "Volunteer work", category: "nonacademic", profileField: "volunteerWork", baseWeight: 0.04 },
+  workExperience: { label: "Work experience", category: "nonacademic", profileField: "workExperience", baseWeight: 0.04 },
+  demonstratedInterest: { label: "Level of applicant's interest", category: "nonacademic", profileField: "demonstratedInterest", baseWeight: 0.03 },
+  firstGeneration: { label: "First generation", category: "contextual", profileField: "firstGeneration", baseWeight: 0 },
+  alumniRelation: { label: "Alumni/ae relation", category: "contextual", profileField: "alumniRelations", baseWeight: 0 },
+  geographicalResidence: { label: "Geographical residence", category: "contextual", profileField: "geographicalResidence", baseWeight: 0 },
+  stateResidency: { label: "State residency", category: "contextual", profileField: "stateResidency", baseWeight: 0 },
+  religiousAffiliation: { label: "Religious affiliation/commitment", category: "contextual", profileField: "religiousAffiliation", baseWeight: 0 },
+};
+
+const WEBLLM_MODEL = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
+const REPORT_VERSION = "advisor-v6";
+
 const CAMPUS_IMAGES = [
   "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1100&q=80",
   "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1100&q=80",
@@ -97,9 +208,11 @@ const USER_CAMPUS_PHOTOS = {
   usc: "assets/campus/usc.jpg",
 };
 
-const US_STATES = [
-  "All", "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DC", "DE", "FL", "GA", "HI", "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND", "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VA", "VT", "WA", "WI", "WV", "WY"
-];
+const STATE_NAMES = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut", DC: "District of Columbia", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", IA: "Iowa", ID: "Idaho", IL: "Illinois", IN: "Indiana", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", MA: "Massachusetts", MD: "Maryland", ME: "Maine", MI: "Michigan", MN: "Minnesota", MO: "Missouri", MS: "Mississippi", MT: "Montana", NC: "North Carolina", ND: "North Dakota", NE: "Nebraska", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NV: "Nevada", NY: "New York", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VA: "Virginia", VT: "Vermont", WA: "Washington", WI: "Wisconsin", WV: "West Virginia", WY: "Wyoming"
+};
+
+const US_STATES = ["All", ...Object.values(STATE_NAMES)];
 
 const COLLEGE_TRANSITIONS_CDS = {
   ucla: { year: "2024-25", url: "https://drive.google.com/file/d/1eMo8pBZjLcqhav3k6uXL1qPmFwLE12FZ/view?usp=sharing" },
@@ -321,9 +434,144 @@ const state = {
   awards: JSON.parse(localStorage.getItem("college-awards") || "[]"),
   photos: JSON.parse(localStorage.getItem("college-photo-version") === PHOTO_VERSION ? localStorage.getItem("college-photos") || "{}" : "{}"),
   filters: { search: "", state: "All", type: "All", region: "All", size: "All", satMin: "400", satMax: "1600", actMin: "1", actMax: "36", acceptance: "100", sort: "Default" },
+  reviewerSchool: localStorage.getItem("college-reviewer-school") || "",
+  aiReport: localStorage.getItem("college-ai-report-version") === REPORT_VERSION ? localStorage.getItem("college-ai-report") || "" : "",
+  aiStatus: "",
+  aiProgress: 0,
+  aiUsedFallback: false,
 };
 
 let renderTimer = null;
+
+const webLLMService = {
+  engine: null,
+  loading: false,
+  error: "",
+  isWebGPUSupported() {
+    return Boolean(navigator.gpu);
+  },
+  getSupportMessage() {
+    if (!this.isWebGPUSupported()) return "WebGPU is not supported in this browser. Use Chrome or Edge with WebGPU enabled to run the local AI reviewer.";
+    if (this.error) return this.error;
+    if (this.engine) return "Local WebLLM model is loaded in this browser.";
+    return "WebGPU is available. The model will download and load locally the first time you generate a report.";
+  },
+  async loadModel() {
+    if (!this.isWebGPUSupported()) throw new Error("WebGPU is not supported in this browser. Local AI generation cannot run here.");
+    if (this.engine) return this.engine;
+    if (this.loading) throw new Error("The local model is already loading. Please wait a moment.");
+    this.loading = true;
+    this.error = "";
+    state.aiStatus = "Loading local WebLLM model. The first run can take a few minutes.";
+    state.aiProgress = 0.02;
+    render();
+    try {
+      const webllm = await import("https://esm.run/@mlc-ai/web-llm");
+      this.engine = await webllm.CreateMLCEngine(WEBLLM_MODEL, {
+        initProgressCallback: (progress) => {
+          state.aiProgress = progress.progress || state.aiProgress;
+          state.aiStatus = progress.text || "Loading local model...";
+          render();
+        },
+      });
+      state.aiStatus = "Local model loaded. Writing report...";
+      state.aiProgress = 1;
+      render();
+      return this.engine;
+    } catch (error) {
+      this.error = `Local AI model could not load: ${error.message}`;
+      state.aiStatus = this.error;
+      state.aiProgress = 0;
+      render();
+      throw error;
+    } finally {
+      this.loading = false;
+    }
+  },
+  async generateProfileRecommendation(profileData, scoringResults, schoolProfile) {
+    const reportContext = buildCompactReportContext(profileData, schoolProfile, scoringResults);
+    return safeGenerateLocalAIReport(reportContext);
+  },
+  async webLLMGenerate(systemPrompt, userPrompt, reportContext) {
+    const engine = await this.loadModel();
+    const response = await engine.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.35,
+      max_tokens: 1200,
+    });
+    const output = cleanGeneratedReport(response.choices?.[0]?.message?.content || "", reportContext);
+    if (validateGeneratedReport(output, reportContext)) return output;
+    state.aiUsedFallback = true;
+    return generateDeterministicReport(reportContext);
+  },
+};
+
+async function generateProfileRecommendation(profileData, scoringResults, schoolProfile) {
+  return webLLMService.generateProfileRecommendation(profileData, scoringResults, schoolProfile);
+}
+
+async function safeGenerateLocalAIReport(reportContext) {
+  state.aiUsedFallback = false;
+  const compactContext = trimReportContextForModel(reportContext, 1800);
+  const userPrompt = `Write a polished college-fit report using this context.
+
+Required sections:
+Student Profile
+School Fit Summary
+Academic Fit
+Major Fit
+Rankings Context if rankingsContext.include is true
+Activities & Impact
+Additional Considerations if contextualNotes is not empty
+Suggested Next Steps
+Disclaimer
+
+Context:
+${JSON.stringify(compactContext)}`;
+  const estimatedTokens = estimatePromptTokens(SHORT_REPORT_SYSTEM_PROMPT + userPrompt);
+  if (!webLLMService.isWebGPUSupported() || estimatedTokens > 3200) {
+    state.aiUsedFallback = true;
+    return generateDeterministicReport(compactContext);
+  }
+  try {
+    const report = await webLLMService.webLLMGenerate(SHORT_REPORT_SYSTEM_PROMPT, userPrompt, compactContext);
+    return report?.trim() ? report : generateDeterministicReport(compactContext);
+  } catch (error) {
+    if (String(error.message || error).toLowerCase().includes("context window")) {
+      state.aiUsedFallback = true;
+      return generateDeterministicReport(compactContext);
+    }
+    throw error;
+  }
+}
+
+function estimatePromptTokens(text) {
+  return Math.ceil(String(text || "").length / 4);
+}
+
+function buildWebLLMPrompt(profileData, scoringResults, schoolProfile = getSchoolProfile(scoringResults.schoolName)) {
+  const reportContext = trimReportContextForModel(buildCompactReportContext(profileData, schoolProfile, scoringResults), 1800);
+  return `
+Write a polished college-fit report using this compact context.
+
+Required sections:
+Student Profile
+School Fit Summary
+Academic Fit
+Major Fit
+Rankings Context if rankingsContext.include is true
+Activities & Impact
+Additional Considerations if contextualNotes is not empty
+Suggested Next Steps
+Disclaimer
+
+Context:
+${JSON.stringify(reportContext, null, 2)}
+`;
+}
 
 function s(id, name, location, type, region, size, acceptance, satRange, satLow, profile, blurb, website, admissions, cds, query) {
   const factors = profile === "UC" ? ucFactors : profile === "Public" ? publicFactors : profile === "Highly Selective" ? highlySelectiveFactors : holisticFactors;
@@ -334,7 +582,7 @@ function s(id, name, location, type, region, size, acceptance, satRange, satLow,
     id,
     name,
     location,
-    state: location.split(", ").at(-1),
+    state: STATE_NAMES[location.split(", ").at(-1)] || location.split(", ").at(-1),
     type,
     region,
     size,
@@ -342,6 +590,13 @@ function s(id, name, location, type, region, size, acceptance, satRange, satLow,
     satRange,
     satLow,
     actLow: parseRange(detail.act || "")[0] || 1,
+    satMiddle50: satRange,
+    satMedian: satMidpoint(satRange),
+    actMiddle50: detail.act || "See CDS",
+    actMedian: satMidpoint(detail.act || ""),
+    gpaAverage: detail.gpaAverage || "",
+    gpaMiddle50: detail.gpaMiddle50 || "",
+    testingPolicy: factors["Standardized test scores"] === "Not Considered" ? (profile === "UC" ? "Blind" : "Not Considered") : "Unknown",
     blurb,
     website,
     admissions,
@@ -350,6 +605,7 @@ function s(id, name, location, type, region, size, acceptance, satRange, satLow,
     image: CAMPUS_IMAGES[imageIndex],
     banner: CAMPUS_IMAGES[(imageIndex + 1) % CAMPUS_IMAGES.length].replace("w=1100", "w=1800"),
     factors,
+    admissionsFactors: factors,
     cdsYear: repositoryCds ? `Latest CDS ${repositoryCds.year}` : "Latest public CDS/admissions pages linked for verification",
     sources: [
       { label: "Official site", url: website },
@@ -372,6 +628,9 @@ function save() {
   localStorage.setItem("college-awards", JSON.stringify(state.awards));
   localStorage.setItem("college-photos", JSON.stringify(state.photos));
   localStorage.setItem("college-photo-version", PHOTO_VERSION);
+  localStorage.setItem("college-reviewer-school", state.reviewerSchool || "");
+  localStorage.setItem("college-ai-report", state.aiReport || "");
+  localStorage.setItem("college-ai-report-version", REPORT_VERSION);
 }
 
 function render() {
@@ -383,7 +642,6 @@ function render() {
         <nav class="tabs">
           ${tabButton("browse", "Browse Schools")}
           ${tabButton("profile", "My Profile")}
-          ${tabButton("compare", "Compare Fit")}
           ${tabButton("reviewer", "Profile Reviewer")}
         </nav>
       </header>
@@ -403,7 +661,6 @@ function tabButton(id, label) {
 
 function renderTab() {
   if (state.tab === "profile") return renderProfile();
-  if (state.tab === "compare") return renderCompare();
   if (state.tab === "reviewer") return renderReviewer();
   return renderBrowse();
 }
@@ -501,7 +758,7 @@ function renderDetail(school) {
         <div class="detail-hero-inner">
           <button class="btn" data-close style="margin-bottom:16px">Close</button>
           <h2>${school.name}</h2>
-          <p>${school.location} · ${school.type} · ${formatSize(school.size)} undergraduates</p>
+          <p>${school.location} &middot; ${school.type} &middot; ${formatSize(school.size)} undergraduates</p>
           <div class="detail-jump">${sections.map(([id, label]) => `<button class="btn ghost" data-jump="${id}">${label}</button>`).join("")}</div>
         </div>
       </div>
@@ -674,15 +931,39 @@ function renderProfile() {
     <section class="layout-2">
       <div class="form-stack">
         <section class="panel">
-          <div class="section-head"><div><h2>Student Info</h2><p class="muted">Core profile details for list-building and review.</p></div></div>
+          <div class="section-head"><div><h2>General Information</h2></div></div>
           <div class="form-content compact-grid">
             ${profileInput("Name", "name", "Avery Student")}
-            ${profileInput("Location", "location", "Queens, NY")}
+            ${profileInput("Hometown", "location", "Queens, New York")}
             ${profileInput("Graduation year", "gradYear", "2027", "number")}
+            ${profileSelect("State residency", "stateResidency", ["", ...US_STATES.filter((item) => item !== "All")])}
+          </div>
+        </section>
+        <section class="panel">
+          <div class="section-head"><div><h2>Academic</h2></div></div>
+          <div class="form-content compact-grid">
             ${profileInput("GPA", "gpa", "3.85")}
             ${profileInput("SAT", "sat", "1450", "number")}
             ${profileInput("ACT", "act", "33", "number")}
+            ${profileInput("Class rank", "classRank", "Top 10% or 12/350", "text")}
+            ${profileInput("Class size", "classSize", "350", "number")}
+            ${profileTextarea("Senior-year courses", "seniorYearCourses", "AP Physics C, AP Statistics, Multivariable Calculus")}
           </div>
+          <div class="form-content">
+            ${courseChipInput("AP courses", "apCourses", AP_COURSES, "Search or add AP course")}
+            ${courseChipInput("IB courses", "ibCourses", IB_COURSES, "Search or add IB course")}
+            ${courseChipInput("Honors courses", "honorsCourses", [], "Add honors course")}
+            ${courseChipInput("Dual Enrollment courses", "dualEnrollmentCourses", [], "Add dual enrollment course")}
+            ${courseChipInput("Custom advanced courses", "customAdvancedCourses", [], "Add advanced or major-related course")}
+          </div>
+        </section>
+        <section class="panel">
+          <div class="section-head"><div><h2>Other Inputs</h2></div></div>
+          <div class="form-content compact-grid">
+            ${majorSelector()}
+            ${profileSelect("First-generation status", "firstGeneration", ["", "No", "Yes", "Prefer not to say"])}
+          </div>
+          ${renderAlumniRelationsForm()}
         </section>
         <section class="panel">
           <div class="section-head"><div><h2>Activities</h2><p class="muted">${state.activities.length}/10 Common App slots used.</p></div></div>
@@ -713,14 +994,15 @@ function renderProfilePreview() {
   return `
     <section class="panel profile-card">
       <h2>${state.profile.name || "Your Profile"}</h2>
-      <p class="muted">${[state.profile.location, state.profile.gradYear && `Class of ${state.profile.gradYear}`].filter(Boolean).join(" · ") || "Add your basics to personalize the app."}</p>
+      <p class="muted">${[state.profile.location, state.profile.gradYear && `Class of ${state.profile.gradYear}`].filter(Boolean).join(" &middot; ") || "Add your basics to personalize the app."}</p>
       <div class="stats">
         <div class="stat"><b>${state.profile.gpa || "-"}</b><span>GPA</span></div>
         <div class="stat"><b>${state.profile.sat || "-"}</b><span>SAT</span></div>
         <div class="stat"><b>${state.profile.act || "-"}</b><span>ACT</span></div>
+        <div class="stat"><b>${state.profile.classRank || "-"}</b><span>Class rank</span></div>
+        <div class="stat"><b>${state.profile.intendedMajor || "-"}</b><span>Major</span></div>
+        <div class="stat"><b>${state.profile.stateResidency || "-"}</b><span>Residency</span></div>
       </div>
-      <p class="muted">Profile completion</p>
-      <div class="meter"><span style="width:${profileScore()}%"></span></div>
     </section>
     <section class="panel profile-card">
       <h3>Activities</h3>
@@ -730,60 +1012,1082 @@ function renderProfilePreview() {
       <h3>Awards</h3>
       <div class="entry-list">${state.awards.map((a, i) => `<div class="entry"><h4>${a.title}</h4><p>${a.level}</p><button class="btn" data-remove-award="${i}">Remove</button></div>`).join("") || `<div class="empty">No awards yet.</div>`}</div>
     </section>
+    <section class="panel profile-card">
+      <h3>Alumni Relations</h3>
+      <div class="entry-list">${getAlumniRelationsFromProfile(state.profile).map((relation, i) => `<div class="entry"><h4>${escapeHtml(relation.institutionName)}</h4><p>${escapeHtml(relation.relationshipType)}</p><button class="btn" data-remove-alumni="${i}">Remove</button></div>`).join("") || `<div class="empty">No alumni relation.</div>`}</div>
+    </section>
   `;
 }
 
-function renderCompare() {
-  const saved = state.list.map((id) => schools.find((school) => school.id === id)).filter(Boolean);
-  const sat = Number(state.profile.sat || 0);
+function renderAlumniRelationsForm() {
+  const relations = getAlumniRelationsFromProfile(state.profile);
   return `
-    <section class="panel profile-card">
-      <h2>Compare Fit</h2>
-      <p class="muted">A first-pass academic comparison using your saved list, SAT score, selectivity, and profile completeness. This is guidance, not a decision engine.</p>
-    </section>
-    <section class="school-grid">
-      ${saved.map((school) => {
-        const distance = sat ? sat - school.satLow : 0;
-        const band = !sat ? "Add SAT for comparison" : distance >= 80 ? "Likely in range" : distance >= -80 ? "Near range" : "Reach on testing";
-        return `<article class="panel review-card"><h3>${school.name}</h3><p class="muted">${school.location}</p><div class="stats"><div class="stat"><b>${school.satRange}</b><span>School SAT</span></div><div class="stat"><b>${state.profile.sat || "-"}</b><span>Your SAT</span></div><div class="stat"><b>${band}</b><span>Signal</span></div></div><button class="btn primary" data-open="${school.id}">Open Details</button></article>`;
-      }).join("") || `<div class="empty">Save schools from Browse Schools to compare them here.</div>`}
-    </section>
+    <div class="alumni-box">
+      <div class="alumni-head">
+        <h3>No alumni relation</h3>
+        <p class="muted">${relations.length ? `${relations.length} alumni relation${relations.length === 1 ? "" : "s"} listed.` : "Add one only when it applies to a specific institution."}</p>
+        <button class="btn" data-clear-alumni type="button">No alumni relation</button>
+      </div>
+      <form class="form-content compact-grid" id="alumni-form">
+        ${field("Institution", `<input name="institutionName" placeholder="University of Michigan or UMich" />`)}
+        ${field("Relationship type", select("relationshipType", ["Parent", "Grandparent", "Sibling", "Aunt/Uncle", "Cousin", "Other relative", "Other"], "Parent", true))}
+        <button class="btn primary">Add alumni relation</button>
+      </form>
+    </div>
   `;
 }
 
 function renderReviewer() {
-  const tips = reviewerTips();
+  const school = getReviewerSchool();
+  const scoringResults = scoreApplicantForSchool(getProfileData(), school);
+  const importanceSlices = getImportanceSlices(scoringResults);
+  const savedSchools = getSavedSchools();
   return `
     <section class="hero">
       <div class="hero-copy">
         <div class="eyebrow">Profile reviewer</div>
         <h1>Turn your application pieces into a clearer story.</h1>
-        <p>This prototype reviewer uses structured rules based on Common App limits and common admissions priorities. A true AI reviewer can plug into this tab next.</p>
+        <p>Get a short, major-aware review based on your saved schools, activities, awards, and each college's admissions priorities.</p>
       </div>
-      <aside class="snapshot">
-        <div class="snapshot-row"><span>Completion</span><strong>${profileScore()}%</strong></div>
-        <div class="snapshot-row"><span>Activities</span><strong>${state.activities.length}/10</strong></div>
-        <div class="snapshot-row"><span>Awards</span><strong>${state.awards.length}/5</strong></div>
-      </aside>
     </section>
-    <section class="review-grid">
-      ${tips.map((tip) => `<article class="panel review-card"><span class="chip">${tip.type}</span><h3>${tip.title}</h3><p class="muted">${tip.body}</p></article>`).join("")}
+    <section class="panel profile-card reviewer-panel">
+      <div class="section-head no-pad">
+        <div>
+          <h2>School Focus</h2>
+          <p class="muted">Choose from your saved schools.</p>
+        </div>
+      </div>
+      <div class="reviewer-controls">
+        ${field("Review school", savedSchools.length ? `<select data-reviewer-school>${savedSchools.map((item) => `<option value="${item.id}" ${item.id === school.id ? "selected" : ""}>${item.name}</option>`).join("")}</select>` : `<div class="empty">Save schools from Browse Schools to review them here.</div>`)}
+      </div>
+      <div class="reviewer-split">
+        <div class="importance-chart">
+          <div class="pie" style="${pieStyle(importanceSlices)}"></div>
+          <div class="legend">${importanceSlices.map((slice) => `<span><i style="background:${slice.color}"></i>${slice.label}</span>`).join("")}</div>
+        </div>
+        <div class="ai-report">${state.aiReport ? markdownToHtml(state.aiReport) : renderBriefRuleReport(scoringResults)}</div>
+      </div>
+      <details class="factor-group">
+        <summary>More info</summary>
+        <div class="reviewer-split more-info-grid">
+        <div>
+          <h3>Factor Breakdown</h3>
+          <div class="factor-breakdown">
+            ${scoringResults.factorBreakdown.map((item) => `
+              <article class="factor-row">
+                <div><strong>${item.factor}</strong><span>${item.note}</span></div>
+                <div><b>${item.importance}</b><span>${item.weightedImpact}% impact</span></div>
+              </article>
+            `).join("")}
+          </div>
+        </div>
+        <div>
+          <h3>Rule-Based Guidance</h3>
+          ${guidanceList("Strengths", scoringResults.strengths)}
+          ${guidanceList("Areas to improve", scoringResults.weaknesses)}
+          ${guidanceList("Recommended improvements", scoringResults.recommendedImprovements)}
+          ${guidanceList("Contextual notes", scoringResults.contextualNotes)}
+        </div>
+      </div>
+      </details>
+    </section>
+    <section class="panel profile-card reviewer-panel">
+      <div class="section-head no-pad">
+        <div>
+          <h2>AI Report</h2>
+          <p class="muted">${webLLMService.getSupportMessage()}</p>
+        </div>
+        <span class="chip">${WEBLLM_MODEL}</span>
+      </div>
+      ${state.aiStatus ? `<p class="muted">${escapeHtml(state.aiStatus)}</p>` : ""}
+      <div class="ai-actions">
+        <button class="btn primary" data-generate-report ${savedSchools.length ? "" : "disabled"}>Generate Local AI Report</button>
+        <div class="ai-loading ${state.aiStatus ? "active" : ""}"><span style="width:${Math.round((state.aiProgress || 0) * 100)}%"></span></div>
+      </div>
     </section>
   `;
 }
 
-function reviewerTips() {
-  const tips = [];
-  if (!state.profile.gpa) tips.push({ type: "Academics", title: "Add academic context", body: "GPA, course rigor, and senior-year schedule are usually the backbone of an admissions review." });
-  if (!state.profile.sat && !state.profile.act) tips.push({ type: "Testing", title: "Record testing status", body: "Add SAT or ACT scores, or mark a test-optional strategy later so comparisons are more useful." });
-  if (state.activities.length < 4) tips.push({ type: "Activities", title: "Show depth beyond class", body: "Add roles, time commitment, leadership, impact, and outcomes. Strong entries read like evidence, not just membership." });
-  if (state.awards.length === 0) tips.push({ type: "Awards", title: "Capture recognition", body: "Awards can include academic honors, art placements, science fairs, debate results, service recognition, or school-level distinctions." });
-  if (tips.length === 0) tips.push({ type: "Next pass", title: "Sharpen the story", body: "Your basics are in. The next upgrade is making activities measurable and connecting your interests to each school." });
-  return tips;
+function guidanceList(title, items) {
+  return `<div class="guidance-list"><h4>${title}</h4>${items.map((item) => `<p>${escapeHtml(item)}</p>`).join("") || `<p class="muted">No major notes yet.</p>`}</div>`;
+}
+
+function getSavedSchools() {
+  return state.list.map((id) => schools.find((school) => school.id === id)).filter(Boolean);
+}
+
+function getReviewerSchool() {
+  const saved = getSavedSchools();
+  const selected = saved.find((school) => school.id === state.reviewerSchool) || saved[0] || schools[0];
+  state.reviewerSchool = selected.id;
+  return selected;
+}
+
+function getProfileData() {
+  const alumniRelations = getAlumniRelationsFromProfile(state.profile);
+  const apCourses = getCourseArray("apCourses");
+  const ibCourses = getCourseArray("ibCourses");
+  const honorsCourses = getCourseArray("honorsCourses");
+  const dualEnrollmentCourses = getCourseArray("dualEnrollmentCourses");
+  const customAdvancedCourses = getCourseArray("customAdvancedCourses");
+  return {
+    ...state.profile,
+    graduationYear: state.profile.gradYear,
+    majorCategory: getMajorCategory(state.profile.intendedMajor),
+    apCourses,
+    ibCourses,
+    honorsCourses,
+    dualEnrollmentCourses,
+    customAdvancedCourses,
+    apCourseCount: apCourses.length || Number(state.profile.apCourseCount || 0),
+    ibCourseCount: ibCourses.length || Number(state.profile.ibCourseCount || 0),
+    honorsCourseCount: honorsCourses.length || Number(state.profile.honorsCourseCount || 0),
+    dualEnrollmentCourseCount: dualEnrollmentCourses.length || Number(state.profile.dualEnrollmentCourseCount || 0),
+    alumniRelations,
+    activities: state.activities,
+    awards: state.awards,
+  };
+}
+
+function getCourseArray(key) {
+  const value = state.profile[key];
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  if (typeof value === "string" && value.trim()) return splitCourseList(value);
+  return [];
+}
+
+function getAlumniRelationsFromProfile(profile = {}) {
+  const listed = Array.isArray(profile.alumniRelations) ? profile.alumniRelations : [];
+  const migrated = !listed.length && profile.alumniRelation && !/^none$/i.test(profile.alumniRelation)
+    ? [{ institutionName: "", relationshipType: profile.alumniRelation }]
+    : [];
+  return [...listed, ...migrated]
+    .map((relation) => ({
+      institutionName: String(relation.institutionName || "").trim(),
+      relationshipType: String(relation.relationshipType || "").trim(),
+    }))
+    .filter((relation) => relation.institutionName);
+}
+
+function getSchoolProfile(schoolName) {
+  const knowledge = window.schoolKnowledgeBase || {};
+  const direct = knowledge[schoolName];
+  if (direct) return normalizeSchoolProfile(direct, schoolName);
+  const aliasMatch = Object.values(knowledge).find((profile) => profile.aliases?.some((alias) => alias.toLowerCase() === String(schoolName).toLowerCase()));
+  if (aliasMatch) return normalizeSchoolProfile(aliasMatch, schoolName);
+  const school = schools.find((item) => item.name === schoolName);
+  return normalizeSchoolProfile({
+    aliases: [],
+    type: school?.type ? `${school.type} college or university` : "College or university",
+    region: school?.region || "Unknown",
+    setting: school?.campus || "Setting not available",
+    strongestMajors: inferMajorsFromBlurb(school?.blurb || ""),
+    applicantFitSignals: ["Academic readiness", "Major alignment", "Activities with evidence of impact", "Clear writing and personal context"],
+    institutionalPersonality: school?.blurb || "School-specific knowledge base data is not available yet.",
+    fitNotes: "Use the applicant profile and available admissions factor ratings. School knowledge base data is limited, so avoid detailed claims not present in the app.",
+    missing: true,
+  }, schoolName);
+}
+
+function normalizeSchoolProfile(profile, schoolName) {
+  const school = schools.find((item) => item.name === schoolName) || schools.find((item) => profile.aliases?.includes(item.name));
+  const actRange = school?.actRange || "See CDS";
+  return {
+    schoolName,
+    ...profile,
+    satMiddle50: profile.satMiddle50 || school?.satRange || "",
+    satMedian: profile.satMedian || satMidpoint(school?.satRange || ""),
+    actMiddle50: profile.actMiddle50 || actRange,
+    actMedian: profile.actMedian || satMidpoint(actRange),
+    gpaAverage: profile.gpaAverage || "",
+    gpaMiddle50: profile.gpaMiddle50 || "",
+    testingPolicy: profile.testingPolicy || inferTestingPolicy(school),
+    admissionsFactors: profile.admissionsFactors || school?.factors || {},
+    rankings: profile.rankings || emptyRankings(),
+  };
+}
+
+function buildReportContext(profileData, scoringResults, schoolProfile) {
+  const majorRelevantCourseSummary = buildMajorRelevantCourseSummary(profileData, profileData.intendedMajor);
+  const matchingRelations = getMatchingAlumniRelations(profileData, scoringResults.schoolName, schoolProfile.aliases || []);
+  const majorCategory = getMajorCategory(profileData.intendedMajor);
+  return {
+    studentSummary: {
+      name: profileData.name || "",
+      location: profileData.location || "",
+      graduationYear: profileData.gradYear || profileData.graduationYear || "",
+      intendedMajor: profileData.intendedMajor || "",
+      majorCategory,
+      gpa: profileData.gpa || "",
+      sat: profileData.sat || "",
+      act: profileData.act || "",
+      classRank: profileData.classRank || "",
+      courseRigorSummary: scoringResults.courseRigor?.summary || "",
+      majorRelevantCourseSummary,
+      alumniRelationsSummary: {
+        hasAny: getAlumniRelationsFromProfile(profileData).length > 0,
+        matchingSelectedSchool: matchingRelations.length > 0,
+        matchingRelations: matchingRelations.map((relation) => ({
+          institutionName: relation.institutionName,
+          relationshipType: relation.relationshipType,
+        })),
+      },
+    },
+    majorGuidance: MAJOR_GUIDANCE[majorCategory] || MAJOR_GUIDANCE.other,
+    contextualNotes: scoringResults.contextualNotes || [],
+  };
+}
+
+function buildCompactReportContext(profileData, schoolProfile, scoringResults) {
+  const majorCategory = getMajorCategory(profileData.intendedMajor);
+  const majorGuidance = MAJOR_GUIDANCE[majorCategory] || MAJOR_GUIDANCE.other;
+  const courseSummary = scoringResults.majorRelevantCourseSummary || buildMajorRelevantCourseSummary(profileData, profileData.intendedMajor);
+  const schoolName = scoringResults.schoolName || schoolProfile.schoolName;
+  const schoolStrengths = getRelevantSchoolStrengths(schoolProfile, majorGuidance);
+  return {
+    student: {
+      name: profileData.name || "Student",
+      location: profileData.location || "",
+      graduationYear: profileData.gradYear || profileData.graduationYear || "",
+      intendedMajor: profileData.intendedMajor || "",
+      majorCategory,
+      gpa: profileData.gpa || "",
+      sat: profileData.sat || "",
+      act: profileData.act || "",
+      classRank: profileData.classRank || "",
+      courseRigor: scoringResults.courseRigor?.summary || "",
+      majorRelevantCourses: courseSummary.summaryText,
+      activitiesSummary: profileActivitySnapshot(profileData),
+    },
+    school: {
+      name: schoolName,
+      type: schoolProfile.type || "",
+      region: schoolProfile.region || "",
+      personality: truncateText(schoolProfile.institutionalPersonality || "", 280),
+      strongestMajors: schoolStrengths.slice(0, 6),
+      admissionsFactors: compactAdmissionsFactors(schoolProfile.admissionsFactors || {}),
+      testingPolicy: scoringResults.schoolData?.testingPolicy || "Unknown",
+      satMiddle50: scoringResults.schoolData?.satMiddle50 || "",
+      actMiddle50: scoringResults.schoolData?.actMiddle50 || "",
+    },
+    majorGuidance: {
+      fitLanguage: majorGuidance.fitLanguage,
+      evidenceToLookFor: majorGuidance.evidenceToLookFor.slice(0, 8),
+      activityFraming: majorGuidance.activityFraming,
+    },
+    academicNotes: [
+      scoringResults.testingGuidance?.note,
+      `Course rigor: ${scoringResults.courseRigor?.summary || "not fully entered"}`,
+    ].filter(Boolean).map((note) => truncateText(note, 220)),
+    majorFitNotes: generateMajorFitNotes(profileData, schoolProfile).map((note) => truncateText(note, 240)).slice(0, 3),
+    rankingsContext: {
+      include: Boolean(scoringResults.relevantRankings?.length),
+      rankings: (scoringResults.relevantRankings || []).slice(0, 3).map((ranking) => ({
+        text: ranking.displayText,
+        source: ranking.source,
+        year: schoolProfile.rankings?.sourceYear || "",
+      })),
+    },
+    contextualNotes: (scoringResults.contextualNotes || []).filter(Boolean).slice(0, 4),
+    suggestedNextSteps: dedupeStrings((scoringResults.recommendedImprovements || []).concat(generateMajorSpecificNextSteps(profileData, schoolProfile, courseSummary))).slice(0, 5),
+  };
+}
+
+function compactAdmissionsFactors(factors) {
+  const keep = ["Rigor of secondary school record", "Class rank", "Academic Grade Point Average (GPA)", "Standardized test scores", "Extracurricular activities", "Alumni/ae relation", "State residency"];
+  return keep.reduce((result, key) => {
+    if (factors[key]) result[key] = factors[key];
+    return result;
+  }, {});
+}
+
+function trimReportContextForModel(reportContext, maxTokens) {
+  const compact = JSON.parse(JSON.stringify(reportContext || {}));
+  while (estimatePromptTokens(JSON.stringify(compact)) > maxTokens) {
+    if (compact.suggestedNextSteps?.length > 3) compact.suggestedNextSteps.pop();
+    else if (compact.majorFitNotes?.length > 2) compact.majorFitNotes.pop();
+    else if (compact.contextualNotes?.length > 2) compact.contextualNotes.pop();
+    else if (compact.majorGuidance?.evidenceToLookFor?.length > 5) compact.majorGuidance.evidenceToLookFor.pop();
+    else {
+      compact.school.personality = truncateText(compact.school.personality || "", 160);
+      break;
+    }
+  }
+  return compact;
+}
+
+function generateDeterministicReport(reportContext) {
+  const ctx = reportContext;
+  const rankings = ctx.rankingsContext?.include ? reportSectionText("Rankings Context", ctx.rankingsContext.rankings.map((ranking) => `- ${ranking.text} (${ranking.source}${ranking.year ? `, ${ranking.year}` : ""}) gives reputation and resource context only; it should not be read as changing admissions odds.`).join("\n")) : "";
+  const additional = ctx.contextualNotes?.length ? reportSectionText("Additional Considerations", ctx.contextualNotes.map((note) => `- ${note}`).join("\n")) : "";
+  return [
+    reportSectionText("Student Profile", [
+      `- ${[ctx.student.name, ctx.student.location, ctx.student.graduationYear && `Class of ${ctx.student.graduationYear}`].filter(Boolean).join(", ")}`,
+      `- Intended major: ${ctx.student.intendedMajor || "Not listed"}`,
+      `- ${[`GPA: ${ctx.student.gpa || "not listed"}`, ctx.student.sat && `SAT: ${ctx.student.sat}`, ctx.student.act && `ACT: ${ctx.student.act}`, ctx.student.classRank && `class rank: ${ctx.student.classRank}`].filter(Boolean).join("; ")}`,
+      `- Course rigor: ${ctx.student.courseRigor || "not fully entered"}`,
+      `- Major-relevant courses: ${ctx.student.majorRelevantCourses || "not yet listed"}`,
+      `- ${ctx.student.activitiesSummary || "Activities and awards are not listed yet."}`,
+    ].join("\n")),
+    reportSectionText("School Fit Summary", `${ctx.school.name} is ${ctx.school.personality || "a school with limited profile data in the app"}. For a ${ctx.student.intendedMajor || "prospective"} applicant, the fit is strongest when the application connects ${ctx.majorGuidance.fitLanguage} with the school's relevant strengths: ${formatList(ctx.school.strongestMajors || [])}.`),
+    reportSectionText("Academic Fit", `The academic profile should be read through the factors this school considers. ${ctx.academicNotes.join(" ")} GPA, rank, rigor, and testing are useful signals only to the extent they are included in the school-specific factor data.`),
+    reportSectionText("Major Fit", ctx.majorFitNotes.join(" ")),
+    rankings,
+    reportSectionText("Activities & Impact", `${ctx.majorGuidance.activityFraming} ${ctx.student.activitiesSummary || ""} The most useful activity descriptions will show what was improved, measured, led, analyzed, built, organized, or changed.`),
+    additional,
+    reportSectionText("Suggested Next Steps", (ctx.suggestedNextSteps || []).map((step) => `- ${step}`).join("\n")),
+    reportSectionText("Disclaimer", "This tool does not provide exact admissions probabilities. This tool should not be read as saying a student will or will not be admitted. Admissions factor ratings, rankings, and school profile data come from the app's school data and should be verified against the current Common Data Set, admissions site, and ranking source."),
+  ].filter(Boolean).join("\n\n");
+}
+
+function reportSectionText(title, body) {
+  return `# ${title}\n${body}`;
+}
+
+function buildMajorRelevantCourseSummary(profileData, intendedMajor) {
+  const listedCourses = splitCourseList([
+    ...(profileData.apCourses || []),
+    ...(profileData.ibCourses || []),
+    ...(profileData.honorsCourses || []),
+    ...(profileData.dualEnrollmentCourses || []),
+    ...(profileData.customAdvancedCourses || []),
+    profileData.courseList,
+    profileData.seniorYearCourses,
+    profileData.majorRelatedCourses,
+  ].join(", "));
+  const suggestions = getMajorCourseSuggestions(intendedMajor);
+  const listedRelevantCourses = listedCourses.filter((course) => suggestions.some((suggestion) => courseMatchesSuggestion(course, suggestion))).slice(0, 5);
+  const missingSuggestedCourses = suggestions
+    .filter((suggestion) => !listedCourses.some((course) => courseMatchesSuggestion(course, suggestion)))
+    .slice(0, listedRelevantCourses.length >= 4 ? 3 : 5);
+  const majorLabel = intendedMajor || "the intended major";
+  const listedText = formatList(listedRelevantCourses);
+  const missingText = formatList(missingSuggestedCourses);
+  let summaryText = "";
+  if (listedRelevantCourses.length >= 4) {
+    summaryText = `Major-relevant coursework is already clear through ${listedText}.`;
+  } else if (listedRelevantCourses.length) {
+    summaryText = `Major-relevant courses include ${listedText}${missingSuggestedCourses.length ? `; adding ${missingText} would make the ${majorLabel} fit clearer` : "."}`;
+  } else {
+    summaryText = `Major-relevant coursework is not yet listed${missingSuggestedCourses.length ? `; adding ${missingText} would help clarify preparation for ${majorLabel}` : "."}`;
+  }
+  if (!/[.!?]$/.test(summaryText)) summaryText += ".";
+  return { listedRelevantCourses, missingSuggestedCourses, summaryText };
+}
+
+function courseMatchesSuggestion(course, suggestion) {
+  const courseKey = normalizeText(course);
+  const suggestionKey = normalizeText(suggestion);
+  if (!courseKey || !suggestionKey) return false;
+  if (courseKey.includes(suggestionKey) || suggestionKey.includes(courseKey)) return true;
+  const variants = suggestion.split(/\/| or /i).map(normalizeText).filter(Boolean);
+  return variants.some((variant) => courseKey.includes(variant) || variant.includes(courseKey));
+}
+
+function getMajorCourseSuggestions(intendedMajor) {
+  const major = String(intendedMajor || "").toLowerCase();
+  if (/engineering|ece|electrical|computer|cs|robotics|data|ai|artificial intelligence|hardware/.test(major)) {
+    return ["AP Calculus AB/BC", "Multivariable Calculus", "AP Physics C", "AP Computer Science A", "AP Computer Science Principles", "IB Mathematics", "IB Physics", "IB Computer Science", "Engineering", "Robotics", "Circuits", "Electronics", "CAD", "Programming", "dual enrollment STEM courses"];
+  }
+  if (/economics|business|finance|accounting|entrepreneur|marketing|social science|political|policy|government/.test(major)) {
+    return ["AP Microeconomics", "AP Macroeconomics", "IB Economics", "AP Statistics", "AP Calculus AB/BC", "Multivariable Calculus", "Business", "Finance", "Accounting", "Entrepreneurship", "Political Science", "Government", "Data Analysis", "college-level economics/business coursework"];
+  }
+  if (/biology|pre-med|medicine|health|biomedical|nursing|public health/.test(major)) {
+    return ["AP Biology", "AP Chemistry", "AP Physics", "AP Statistics", "IB Biology", "IB Chemistry", "IB Physics", "Anatomy", "Physiology", "Public Health", "college-level science courses"];
+  }
+  if (/humanities|english|writing|film|media|art|design|music|theater|journalism|communication/.test(major)) {
+    return ["AP English Language", "AP English Literature", "AP Art History", "AP Seminar", "AP Research", "AP Music Theory", "IB Film", "IB Theatre", "IB Visual Arts", "Journalism", "Creative Writing", "Media", "Design", "Art courses"];
+  }
+  return ["advanced coursework related to the intended major", "research or project-based coursework", "college-level coursework", "statistics or data analysis", "senior-year courses connected to the major"];
+}
+
+function splitCourseList(text) {
+  return String(text || "")
+    .split(/[,;\n]+/)
+    .map((course) => course.trim())
+    .filter(Boolean)
+    .filter((course, index, arr) => arr.findIndex((item) => normalizeText(item) === normalizeText(course)) === index);
+}
+
+function formatList(items) {
+  const clean = items.filter(Boolean);
+  if (!clean.length) return "";
+  if (clean.length === 1) return clean[0];
+  if (clean.length === 2) return `${clean[0]} and ${clean[1]}`;
+  return `${clean.slice(0, -1).join(", ")}, or ${clean.at(-1)}`;
+}
+
+function normalizeText(value) {
+  return String(value || "").toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function normalizeSchoolNameForMatch(value) {
+  return normalizeText(value)
+    .replace(/\buniversity\b/g, "")
+    .replace(/\bcollege\b/g, "")
+    .replace(/\bat\b/g, "")
+    .replace(/\bann arbor\b/g, "")
+    .replace(/\bthe\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getMatchingAlumniRelations(profileData, selectedSchoolName, schoolAliases = []) {
+  const selectedNames = [selectedSchoolName, ...schoolAliases].filter(Boolean);
+  const selectedKeys = new Set(selectedNames.flatMap((name) => [normalizeText(name), normalizeSchoolNameForMatch(name)]));
+  return getAlumniRelationsFromProfile(profileData).filter((relation) => {
+    const institution = relation.institutionName;
+    if (!institution) return false;
+    const relationKeys = [normalizeText(institution), normalizeSchoolNameForMatch(institution)];
+    return relationKeys.some((key) => selectedKeys.has(key));
+  });
+}
+
+function emptyRankings() {
+  return {
+    sourceYear: "",
+    lastUpdated: "",
+    // Ranking data changes each year. Insert only manually verified ranking values and source URLs here.
+    sources: [],
+  };
+}
+
+function inferTestingPolicy(school) {
+  if (!school) return "Unknown";
+  if (school.factors?.["Standardized test scores"] === "Not Considered") return school.id?.startsWith("uc") ? "Blind" : "Not Considered";
+  return "Unknown";
+}
+
+function inferMajorsFromBlurb(blurb) {
+  const candidates = ["Engineering", "Computer Science", "Business", "Economics", "Biology", "Political Science", "Psychology", "Public Health", "Film", "Arts", "Data Science", "Pre-Med/Life Sciences"];
+  const lower = blurb.toLowerCase();
+  const matched = candidates.filter((major) => lower.includes(major.toLowerCase().split("/")[0]));
+  return matched.length ? matched : ["Liberal Arts", "Research", "Interdisciplinary Studies"];
+}
+
+function getMajorCategory(intendedMajor) {
+  const major = String(intendedMajor || "").trim().toLowerCase();
+  for (const [category, majors] of Object.entries(MAJOR_OPTIONS)) {
+    if (majors.some((option) => option.toLowerCase() === major)) return category;
+  }
+  if (/engineering|computer|software|data|ai|robotics|electrical|mechanical|aerospace|civil|chemical|industrial/.test(major)) return "engineeringCS";
+  if (/economics|business|finance|accounting|marketing|entrepreneur|management|political|policy|international|government|sociology|psychology/.test(major)) return "businessSocialScience";
+  if (/biology|biochemistry|neuroscience|pre-med|medicine|health|nursing|biomedical|chemistry|environmental/.test(major)) return "lifeSciencesHealth";
+  if (/english|history|philosophy|journalism|communication|film|media|design|theater|music|art|architecture/.test(major)) return "humanitiesArtsMedia";
+  return "other";
+}
+
+function scoreApplicantForSchool(profileData, school) {
+  const schoolProfile = getSchoolProfile(school.name);
+  return calculateSchoolSpecificFit(profileData, school.factors, { ...schoolProfile, schoolName: school.name, school });
+}
+
+function calculateSchoolSpecificFit(profileData, schoolAdmissionsFactors, schoolProfile) {
+  const school = schoolProfile.school || schools.find((item) => item.name === schoolProfile.schoolName) || getReviewerSchool();
+  // Later this can be replaced by a real school database record that includes
+  // major strength, location, selectivity, admissions factor importance ratings,
+  // tuition, residency policies, school size, campus setting, and public/private status.
+  const factorBreakdown = [];
+  const contextualNotes = [];
+  let totalWeighted = 0;
+  let totalPossible = 0;
+  let academicWeighted = 0;
+  let academicPossible = 0;
+  let nonacademicWeighted = 0;
+  let nonacademicPossible = 0;
+  const matchingAlumniRelations = getMatchingAlumniRelations(profileData, school.name, schoolProfile.aliases || []);
+
+  Object.values(factorConfig).forEach((factor) => {
+    const importance = schoolAdmissionsFactors?.[factor.label] || "Not Considered";
+    const multiplier = importanceMultipliers[importance] ?? 0;
+    const applicantScore = getApplicantFactorScore(factor.profileField, profileData, school);
+    const possible = factor.baseWeight * multiplier;
+    const weightedImpact = possible ? applicantScore * possible : 0;
+
+    if (factor.category === "contextual") {
+      const note = contextualNote(factor.label, importance, profileData[factor.profileField], school, {
+        matchingAlumniRelations,
+        profileData,
+      });
+      if (note) contextualNotes.push(note);
+      return;
+    }
+
+    if (possible > 0) {
+      totalWeighted += weightedImpact;
+      totalPossible += possible;
+      if (factor.category === "academic") {
+        academicWeighted += weightedImpact;
+        academicPossible += possible;
+      } else {
+        nonacademicWeighted += weightedImpact;
+        nonacademicPossible += possible;
+      }
+    }
+
+    factorBreakdown.push({
+      factor: factor.label,
+      importance,
+      applicantScore: Math.round(applicantScore),
+      weightedImpact: Math.round(weightedImpact),
+      note: factorNote(factor.label, importance, applicantScore, school),
+    });
+  });
+
+  const schoolSpecificFitScore = Math.round(totalPossible ? totalWeighted / totalPossible : 0);
+  const academicFitScore = Math.round(academicPossible ? academicWeighted / academicPossible : 0);
+  const nonacademicFitScore = Math.round(nonacademicPossible ? nonacademicWeighted / nonacademicPossible : 0);
+  const schoolData = {
+    schoolName: school.name,
+    satMiddle50: schoolProfile.satMiddle50 || school.satRange,
+    satMedian: schoolProfile.satMedian || satMidpoint(school.satRange),
+    actMiddle50: schoolProfile.actMiddle50 || school.actRange,
+    actMedian: schoolProfile.actMedian || satMidpoint(school.actRange),
+    gpaAverage: schoolProfile.gpaAverage || "",
+    gpaMiddle50: schoolProfile.gpaMiddle50 || "",
+    testingPolicy: schoolProfile.testingPolicy || inferTestingPolicy(school),
+  };
+  const courseRigor = evaluateCourseRigor(profileData, profileData.intendedMajor);
+  const majorRelevantCourseSummary = buildMajorRelevantCourseSummary(profileData, profileData.intendedMajor);
+  const testingGuidance = getTestingGuidance(profileData, schoolData, schoolAdmissionsFactors);
+  const majorFitNotes = generateMajorFitNotes(profileData, schoolProfile);
+  const majorFitScore = scoreMajorFit(profileData, schoolProfile);
+  const institutionalFitNotes = generateInstitutionalFitNotes(profileData, schoolProfile);
+  const institutionalFitScore = scoreInstitutionalFit(profileData, schoolProfile);
+  const relevantRankings = getRelevantRankings(schoolProfile, profileData.intendedMajor);
+  const considered = factorBreakdown.filter((factor) => factor.importance !== "Not Considered");
+  const strengths = considered.filter((factor) => factor.applicantScore >= 78).slice(0, 5).map((factor) => `${factor.factor} appears well supported and matters here because the school lists it as ${factor.importance}.`);
+  const weaknesses = considered.filter((factor) => factor.applicantScore < 58).slice(0, 5).map((factor) => `${factor.factor} needs clearer applicant evidence because this school lists it as ${factor.importance}.`);
+  const recommendedImprovements = generateSpecificImprovementSuggestions(profileData, { factorBreakdown: considered }, schoolProfile);
+
+  const result = {
+    schoolName: school.name,
+    schoolSpecificFitScore,
+    academicFitScore,
+    nonacademicFitScore,
+    majorFitScore,
+    institutionalFitScore,
+    schoolData,
+    courseRigor,
+    majorRelevantCourseSummary,
+    testingGuidance,
+    relevantRankings,
+    factorBreakdown,
+    majorFitNotes,
+    institutionalFitNotes,
+    strengths,
+    weaknesses,
+    recommendedImprovements,
+    schoolListGuidance: [],
+    contextualNotes,
+    cautionNotes: [
+      "This tool does not provide exact admissions probabilities.",
+      "This tool should not be read as saying a student will or will not be admitted.",
+      "Admissions factor ratings come from the app's school data and should be verified against the current CDS and admissions site.",
+    ],
+  };
+  result.reportContext = buildReportContext(profileData, result, schoolProfile);
+  return result;
+}
+
+function getImportanceSlices(scoringResults) {
+  const colors = {
+    Academic: "#0f766e",
+    Activities: "#b68a00",
+    Personal: "#475569",
+    Context: "#8b5cf6",
+  };
+  const groups = scoringResults.factorBreakdown.reduce((totals, item) => {
+    const label = /Extracurricular|Talent|Volunteer|Work/.test(item.factor) ? "Activities" :
+      /Character|essay|Recommendations|Interview/i.test(item.factor) ? "Personal" :
+      "Academic";
+    totals[label] = (totals[label] || 0) + Math.max(0, item.weightedImpact || 0);
+    return totals;
+  }, {});
+  groups.Context = scoringResults.contextualNotes.length * 3;
+  const total = Object.values(groups).reduce((sum, value) => sum + value, 0) || 1;
+  return Object.entries(groups).filter(([, value]) => value > 0).map(([label, value]) => ({
+    label,
+    value,
+    percent: Math.round((value / total) * 100),
+    color: colors[label] || "#64748b",
+  }));
+}
+
+function pieStyle(slices) {
+  let cursor = 0;
+  const stops = slices.map((slice) => {
+    const start = cursor;
+    cursor += slice.percent;
+    return `${slice.color} ${start}% ${cursor}%`;
+  });
+  return `background: conic-gradient(${stops.join(", ")});`;
+}
+
+function generateMajorFitNotes(profileData, schoolProfile) {
+  const major = String(profileData.intendedMajor || "").trim();
+  if (!major) return ["Intended major is missing, so major-fit analysis is limited."];
+  const category = getMajorCategory(major);
+  const guidance = MAJOR_GUIDANCE[category] || MAJOR_GUIDANCE.other;
+  const strongest = schoolProfile.strongestMajors || [];
+  const direct = getRelevantSchoolStrengths(schoolProfile, guidance);
+  const base = direct.length
+    ? `${major} connects most directly with this school's strengths in ${direct.slice(0, 4).join(", ")}.`
+    : `${major} is not an obvious direct match in the current school knowledge base, so the application should make the academic connection explicit.`;
+  const evidence = `Strong evidence for this major would include ${formatList(guidance.evidenceToLookFor.slice(0, 8))}.`;
+  const activityBridge = category === "businessSocialScience" && /robotics|engineering|technical|coding|hardware|operations/i.test(getActivityText(profileData))
+    ? "Technical activities can still help if framed through operations, technology markets, productivity, business strategy, innovation, or data-driven decision-making rather than as an engineering-only story."
+    : guidance.activityFraming;
+  return [base, evidence, activityBridge];
+}
+
+function getRelevantSchoolStrengths(schoolProfile, guidance) {
+  const strengths = schoolProfile.strongestMajors || [];
+  const keywords = guidance.relevantSchoolStrengthKeywords || [];
+  const matched = strengths.filter((strength) => keywords.some((keyword) => strength.toLowerCase().includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(strength.toLowerCase())));
+  return matched.length ? matched : strengths.slice(0, 4);
+}
+
+function generateInstitutionalFitNotes(profileData, schoolProfile) {
+  const activityText = getActivityText(profileData);
+  const matchedSignals = (schoolProfile.applicantFitSignals || []).filter((signal) => activityText.includes(signal.split(" ")[0].toLowerCase()));
+  return [
+    schoolProfile.institutionalPersonality || "Institutional personality data is limited.",
+    matchedSignals.length ? `Current activities appear to connect with: ${matchedSignals.slice(0, 3).join(", ")}.` : "Add clearer activity evidence that matches this school's applicant-fit signals.",
+  ];
+}
+
+function generateSpecificImprovementSuggestions(profileData, scoringResults, schoolProfile) {
+  const major = profileData.intendedMajor || "the intended major";
+  const category = getMajorCategory(major);
+  const guidance = MAJOR_GUIDANCE[category] || MAJOR_GUIDANCE.other;
+  const courseSummary = buildMajorRelevantCourseSummary(profileData, major);
+  const factors = scoringResults.factorBreakdown || [];
+  const improvements = [];
+  const weakAcademic = factors.find((factor) => /GPA|Rigor|Class rank|test/i.test(factor.factor) && factor.importance !== "Not Considered" && factor.applicantScore < 70);
+  const weakActivities = factors.find((factor) => /Extracurricular|Talent|Volunteer|Work|Character/i.test(factor.factor) && factor.importance !== "Not Considered" && factor.applicantScore < 70);
+  if (weakAcademic) improvements.push(`${weakAcademic.factor} needs clearer evidence for this school because it is listed as ${weakAcademic.importance}; connect academic evidence to ${guidance.fitLanguage}.`);
+  if (weakActivities) improvements.push(`${weakActivities.factor} would be more convincing if it showed measurable impact, leadership, or major-related depth instead of general participation.`);
+  if (courseSummary.missingSuggestedCourses.length) improvements.push(`Add or clarify major-related coursework such as ${formatList(courseSummary.missingSuggestedCourses.slice(0, 4))}.`);
+  improvements.push(guidance.activityFraming);
+  improvements.push(`Use essays or activity descriptions to connect your story to this school's personality: ${schoolProfile.institutionalPersonality || "school-specific priorities currently available in the app"}`);
+  return improvements.slice(0, 4);
+}
+
+function generateMajorSpecificNextSteps(profileData, schoolProfile, courseSummary) {
+  const category = getMajorCategory(profileData.intendedMajor);
+  const guidance = MAJOR_GUIDANCE[category] || MAJOR_GUIDANCE.other;
+  const steps = [];
+  if (courseSummary.missingSuggestedCourses?.length) steps.push(`Add or clarify ${formatList(courseSummary.missingSuggestedCourses.slice(0, 4))} if available.`);
+  steps.push(guidance.activityFraming);
+  if (category === "businessSocialScience" && /robotics|engineering|technical|coding|operations/i.test(getActivityText(profileData))) {
+    steps.push("Frame technical or operations activities through markets, productivity, business strategy, innovation, or data-driven decision-making.");
+  }
+  steps.push(`Use essays to connect ${profileData.intendedMajor || "the intended major"} with ${truncateText(schoolProfile.institutionalPersonality || "the school's academic environment", 140)}.`);
+  return steps;
+}
+
+function compareSATToSchool(profileSAT, schoolSATRange) {
+  const sat = Number(profileSAT || 0);
+  const [low, high] = parseRange(schoolSATRange || "");
+  if (!sat || !low || !high) return { status: "missing", note: "SAT comparison is limited because either the student score or school range is missing." };
+  if (sat > high) return { status: "above", note: `Your ${sat} SAT is above the reported middle 50% range of ${low}-${high}, so it may be a strong testing signal if this school considers scores.` };
+  if (sat >= low && sat <= high) return { status: "within", note: `Your ${sat} SAT is within the reported middle 50% range of ${low}-${high}, so it appears academically competitive for testing if scores are considered.` };
+  return { status: "below", note: `Your ${sat} SAT is below the reported middle 50% range of ${low}-${high}; if the school is test-optional, consider whether submitting helps the application.` };
+}
+
+function compareACTToSchool(profileACT, schoolACTRange) {
+  const act = Number(profileACT || 0);
+  const [low, high] = parseRange(schoolACTRange || "");
+  if (!act || !low || !high) return { status: "missing", note: "ACT comparison is limited because either the student score or school range is missing." };
+  if (act > high) return { status: "above", note: `Your ${act} ACT is above the reported middle 50% range of ${low}-${high}, so it may be a strong testing signal if this school considers scores.` };
+  if (act >= low && act <= high) return { status: "within", note: `Your ${act} ACT is within the reported middle 50% range of ${low}-${high}, so it appears academically competitive for testing if scores are considered.` };
+  return { status: "below", note: `Your ${act} ACT is below the reported middle 50% range of ${low}-${high}; if the school is test-optional, consider whether submitting helps the application.` };
+}
+
+function evaluateCourseRigor(profileData, intendedMajor) {
+  const ap = (profileData.apCourses || []).length || Number(profileData.apCourseCount || 0);
+  const honors = (profileData.honorsCourses || []).length || Number(profileData.honorsCourseCount || 0);
+  const ib = (profileData.ibCourses || []).length || Number(profileData.ibCourseCount || 0);
+  const dual = (profileData.dualEnrollmentCourses || []).length || Number(profileData.dualEnrollmentCourseCount || 0);
+  const courses = [
+    ...(profileData.apCourses || []),
+    ...(profileData.ibCourses || []),
+    ...(profileData.honorsCourses || []),
+    ...(profileData.dualEnrollmentCourses || []),
+    ...(profileData.customAdvancedCourses || []),
+    profileData.seniorYearCourses,
+    profileData.courseList,
+    profileData.majorRelatedCourses,
+  ].join(" ").toLowerCase();
+  const advancedTotal = ap + honors * 0.6 + ib + dual;
+  const category = getMajorCategory(intendedMajor);
+  const majorKeywords = (MAJOR_GUIDANCE[category] || MAJOR_GUIDANCE.other).evidenceToLookFor.slice(0, 8);
+  const majorMatches = majorKeywords.filter((keyword) => courses.includes(keyword)).length;
+  const score = clampScore(45 + Math.min(35, advancedTotal * 4) + Math.min(20, majorMatches * 6));
+  const summary = advancedTotal
+    ? `${ap} AP, ${honors} Honors, ${ib} IB, and ${dual} dual enrollment courses are listed.`
+    : "Advanced course counts are not fully entered yet.";
+  const majorNote = majorMatches
+    ? `Major-related coursework appears to include ${majorKeywords.filter((keyword) => courses.includes(keyword)).slice(0, 4).join(", ")}.`
+    : "Major-related coursework should be clarified, especially advanced courses connected to the intended major.";
+  return { score, summary, majorNote, courseList: profileData.courseList || "", seniorYearCourses: profileData.seniorYearCourses || "", majorRelatedCourses: profileData.majorRelatedCourses || "" };
+}
+
+function getTestingGuidance(profileData, schoolData, admissionsFactors = {}) {
+  const policy = schoolData.testingPolicy || "Unknown";
+  if (policy === "Blind" || policy === "Not Considered" || admissionsFactors["Standardized test scores"] === "Not Considered") {
+    return { policy, note: "This school does not appear to consider standardized test scores in the school-specific evaluation, so SAT/ACT should not affect this fit analysis." };
+  }
+  const sat = compareSATToSchool(profileData.sat, schoolData.satMiddle50);
+  const act = compareACTToSchool(profileData.act, schoolData.actMiddle50);
+  const best = sat.status === "above" || sat.status === "within" ? sat : act.status === "above" || act.status === "within" ? act : sat.status !== "missing" ? sat : act;
+  const optionalNote = policy === "Optional" ? " Because this school is test-optional in the app data, submit only if the score strengthens the academic picture." : "";
+  return { policy, sat, act, note: `${best.note}${optionalNote}` };
+}
+
+function getRelevantRankings(schoolProfile, intendedMajor) {
+  const sources = schoolProfile.rankings?.sources || [];
+  if (!sources.length) return [];
+  const major = String(intendedMajor || "").toLowerCase();
+  const priorities = /engineering|ece|electrical|computer|cs|data|ai/.test(major) ? ["Undergraduate Engineering", "Electrical Engineering", "Computer Engineering", "Computer Science", "Artificial Intelligence", "Data Science", "National Universities"] :
+    /business|finance|marketing|entrepreneur/.test(major) ? ["Undergraduate Business", "Finance", "Entrepreneurship", "Marketing", "National Universities"] :
+    /biology|pre-med|medicine|health|biomedical/.test(major) ? ["Biology", "Biomedical Engineering", "Public Health", "National Universities", "Research"] :
+    /political|policy|international|government/.test(major) ? ["Political Science", "Public Policy", "International Relations", "National Universities"] :
+    /film|art|design|theater|music|communication/.test(major) ? ["Film", "Performing Arts", "Design", "Fine Arts", "Communications"] :
+    ["National Universities"];
+  return sources
+    .filter((item) => item.displayText)
+    .map((item) => {
+      const index = priorities.findIndex((priority) => item.category?.toLowerCase().includes(priority.toLowerCase()));
+      return { ...item, relevance: index === -1 ? 99 : index };
+    })
+    .sort((a, b) => a.relevance - b.relevance)
+    .slice(0, 4);
+}
+
+function scoreMajorFit(profileData, schoolProfile) {
+  const notes = generateMajorFitNotes(profileData, schoolProfile);
+  const direct = /connects most directly/i.test(notes[0]) ? 78 : 58;
+  const category = getMajorCategory(profileData.intendedMajor);
+  const keywords = (MAJOR_GUIDANCE[category] || MAJOR_GUIDANCE.other).evidenceToLookFor;
+  const evidence = activityKeywordSignal(profileData.activities, keywords) || extracurricularSignal(profileData);
+  return clampScore((direct * 0.55) + (evidence * 0.45));
+}
+
+function scoreInstitutionalFit(profileData, schoolProfile) {
+  const activityText = getActivityText(profileData);
+  const signals = schoolProfile.applicantFitSignals || [];
+  const matches = signals.filter((signal) => signal.toLowerCase().split(/\W+/).some((word) => word.length > 5 && activityText.includes(word))).length;
+  return clampScore(55 + matches * 10 + Math.min(state.activities.length, 5) * 3);
+}
+
+function isEngineeringMajor(major) {
+  return getMajorCategory(major) === "engineeringCS";
+}
+
+function getActivityText(profileData) {
+  return [
+    profileData.intendedMajor,
+    ...(profileData.activities || []).map((activity) => `${activity.category} ${activity.title} ${activity.description}`),
+    ...(profileData.awards || []).map((award) => `${award.title} ${award.level}`),
+  ].join(" ").toLowerCase();
+}
+
+function profileActivitySnapshot(profileData) {
+  const activities = (profileData.activities || []).slice(0, 3).map((activity) => activity.title).filter(Boolean);
+  const awards = (profileData.awards || []).slice(0, 2).map((award) => award.title).filter(Boolean);
+  const pieces = [...activities, ...awards];
+  return pieces.length ? `Activities include ${formatList(pieces)}.` : "Activities and awards are not listed yet.";
+}
+
+function renderBriefRuleReport(scoringResults) {
+  const profileData = getProfileData();
+  const major = profileData.intendedMajor || "your intended major";
+  const schoolProfile = getSchoolProfile(scoringResults.schoolName);
+  const rankings = getRelevantRankings(schoolProfile, major);
+  const courseSummary = scoringResults.majorRelevantCourseSummary || buildMajorRelevantCourseSummary(profileData, major);
+  const academic = [
+    profileData.gpa ? `GPA: ${profileData.gpa}` : null,
+    profileData.sat ? `SAT: ${profileData.sat}` : null,
+    profileData.act ? `ACT: ${profileData.act}` : null,
+    profileData.classRank ? `Class rank: ${profileData.classRank}` : null,
+  ].filter(Boolean);
+  const additional = scoringResults.contextualNotes.filter((note) => /First-generation|Alumni|State residency|Religious|Geographical/.test(note)).slice(0, 3);
+  return `
+    <article class="report-card">
+      ${reportSection("Student Profile", [
+        `${profileData.name || "Student"}${profileData.location ? `, ${profileData.location}` : ""}${profileData.gradYear ? `, Class of ${profileData.gradYear}` : ""}`,
+        `Intended major: ${major}`,
+        academic.join("; ") || "Add GPA, testing, and class rank for a clearer academic read.",
+        `Course rigor: ${scoringResults.courseRigor.summary}`,
+        `Major-relevant courses: ${courseSummary.summaryText.replace(/^Major-relevant courses?:\s*/i, "").replace(/^Major-relevant coursework\s*/i, "Coursework ")}`,
+        profileActivitySnapshot(profileData),
+      ], true)}
+      ${reportSection("School Fit Summary", `${scoringResults.schoolName} is especially strong in ${(schoolProfile.strongestMajors || []).slice(0, 5).join(", ")}. ${schoolProfile.institutionalPersonality || ""} For a ${major} applicant, the fit is strongest when the applicant's evidence matches what the school emphasizes, not when the school is simply highly selective or well known.`)}
+      ${reportSection("Academic Fit", `The academic profile should be read through the factors this school considers: GPA, class rank, rigor, and testing only matter when listed in the school data. ${scoringResults.testingGuidance.note} Course rigor appears ${scoringResults.courseRigor.score >= 75 ? "strong overall" : "still worth clarifying"} based on the advanced course counts entered.`)}
+      ${reportSection("Major Fit", `${scoringResults.majorFitNotes.join(" ")} Strong programs can mean stronger reputation and resources, but also a more competitive applicant pool.`)}
+      ${rankings.length ? reportSection("Rankings Context", rankings.slice(0, 3).map((ranking) => `${ranking.displayText} (${ranking.source}, ${schoolProfile.rankings.sourceYear || "year not set"}). Use this as reputation/resource context, not an admissions-chance signal.`), true) : ""}
+      ${reportSection("Activities & Impact", `For this school, activities should show more than participation. ${isEngineeringMajor(major) ? "For an ECE/engineering applicant, robotics, circuits, coding, hardware, AI, research, competitions, or independent builds would make the profile feel more aligned." : "The most useful evidence would show depth, leadership, initiative, service, creativity, or measurable impact connected to the intended major."}`)}
+      ${reportSection("Additional Considerations", additional.length ? additional : ["Contextual factors should be used as context only, not as automatic advantages or disadvantages."], true)}
+      ${reportSection("Suggested Next Steps", dedupeStrings(scoringResults.recommendedImprovements.concat([
+        !courseSummary.listedRelevantCourses.length ? `Add major-related coursework or project evidence tied to ${major}.` : "",
+        "Use essays to connect personal story, academic interests, and school fit without repeating the activity list.",
+      ]).filter(Boolean)).slice(0, 5), true)}
+      ${reportSection("Disclaimer", "This tool does not provide exact admissions probabilities. This tool should not be read as saying a student will or will not be admitted. Admissions factor ratings, rankings, and school profile data come from the app's school data and should be verified against the current Common Data Set, admissions site, and ranking source.")}
+    </article>
+  `;
+}
+
+function reportSection(title, content, bullets = false) {
+  const body = Array.isArray(content)
+    ? bullets ? `<ul>${content.filter(Boolean).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : content.map((item) => `<p>${escapeHtml(item)}</p>`).join("")
+    : `<p>${escapeHtml(content)}</p>`;
+  return `<section class="report-section"><h3>${title}</h3>${body}</section>`;
+}
+
+function buildSpecificStrengths(scoringResults, schoolProfile) {
+  return scoringResults.strengths.map((strength) => {
+    if (/GPA/i.test(strength)) return `Your GPA may strengthen the application because this school weighs academic performance heavily; it will be more convincing when paired with ${schoolProfile.strongestMajors?.slice(0, 2).join(" or ")}-aligned coursework or projects.`;
+    if (/Extracurricular/i.test(strength)) return `Your activities appear useful because this school values impact beyond class; make sure the entries show leadership, measurable contribution, and fit with ${state.profile.intendedMajor || "your major"}.`;
+    return strength;
+  });
+}
+
+function recommendedSchoolsForMajor(scoringResults) {
+  const major = String(state.profile.intendedMajor || "").toLowerCase();
+  const saved = getSavedSchools();
+  if (!saved.length) return [];
+  const majorWords = major.split(/[^a-z]+/).filter((word) => word.length > 3);
+  return saved
+    .map((school) => {
+      const text = `${school.name} ${school.blurb}`.toLowerCase();
+      const majorMatch = majorWords.some((word) => text.includes(word)) ? 12 : 0;
+      return { school, score: scoreApplicantForSchool(getProfileData(), school).schoolSpecificFitScore + majorMatch };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((item) => item.school);
+}
+
+function getApplicantFactorScore(field, profileData, school) {
+  const value = profileData[field];
+  if (field === "gpa") return clampScore((Number(profileData.gpa || 0) / 4) * 100);
+  if (field === "testScores") return testScoreSignal(profileData, school);
+  if (field === "extracurriculars") return extracurricularSignal(profileData);
+  if (["courseRigor", "recommendations", "essayStrength", "interviewStrength", "demonstratedInterest"].includes(field)) return 60;
+  if (["talentAbility", "characterPersonalQualities"].includes(field)) return Math.max(60, extracurricularSignal(profileData) - 5);
+  if (field === "volunteerWork") return Math.max(choiceSignal(value), activityKeywordSignal(profileData.activities, ["volunteer", "service", "community", "nonprofit"]));
+  if (field === "workExperience") return Math.max(choiceSignal(value), activityKeywordSignal(profileData.activities, ["work", "job", "intern", "paid", "family responsibilities"]));
+  if (field === "classRank") return rankSignal(value);
+  return choiceSignal(value);
+}
+
+function choiceSignal(value) {
+  const text = String(value || "").toLowerCase();
+  if (!text) return 45;
+  if (/exceptional|major|most rigorous|very strong|top 1|national|international/.test(text)) return 95;
+  if (/distinctive|strong|consistent|top 5|top 10/.test(text)) return 82;
+  if (/solid|moderate|some|basic|top 25/.test(text)) return 65;
+  if (/developing|draft|light|low|none yet|not started/.test(text)) return 42;
+  if (/not offered|not applicable|prefer not/.test(text)) return 50;
+  return 60;
+}
+
+function rankSignal(value) {
+  const text = String(value || "").toLowerCase();
+  const fraction = text.match(/(\d+)\s*\/\s*(\d+)/);
+  if (fraction) {
+    const rank = Number(fraction[1]);
+    const total = Number(fraction[2]);
+    if (rank && total) return clampScore(100 - (rank / total) * 180);
+  }
+  const number = Number(text.match(/\d+/)?.[0] || 0);
+  if (/top/.test(text) && number) {
+    if (number <= 5) return 92;
+    if (number <= 10) return 84;
+    if (number <= 25) return 68;
+  }
+  return choiceSignal(value);
+}
+
+function testScoreSignal(profileData, school) {
+  const [satLow, satHigh] = parseRange(school.satRange);
+  const [actLow, actHigh] = parseRange(school.actRange);
+  const sat = Number(profileData.sat || 0);
+  const act = Number(profileData.act || 0);
+  const satScore = sat && satLow && satHigh ? normalizeBetween(sat, satLow - 120, satHigh + 60) : 0;
+  const actScore = act && actLow && actHigh ? normalizeBetween(act, actLow - 3, actHigh + 1) : 0;
+  return Math.max(satScore, actScore, sat || act ? 45 : 40);
+}
+
+function extracurricularSignal(profileData) {
+  const countScore = Math.min(85, (profileData.activities?.length || 0) * 8 + 20);
+  const leadershipText = (profileData.activities || []).map((activity) => `${activity.title} ${activity.description}`).join(" ").toLowerCase();
+  const leadershipBonus = /(captain|president|founder|lead|leader|created|built|organized|published|research|intern)/.test(leadershipText) ? 12 : 0;
+  return clampScore(countScore + leadershipBonus);
+}
+
+function activityKeywordSignal(activities, keywords) {
+  const text = (activities || []).map((activity) => `${activity.category} ${activity.title} ${activity.description}`).join(" ").toLowerCase();
+  return keywords.some((keyword) => text.includes(keyword)) ? 76 : 45;
+}
+
+function normalizeBetween(value, low, high) {
+  return clampScore(((value - low) / (high - low)) * 100);
+}
+
+function clampScore(value) {
+  return Math.max(0, Math.min(100, Math.round(value || 0)));
+}
+
+function factorNote(label, importance, applicantScore, school) {
+  if (importance === "Not Considered") return `${school.name} does not appear to consider this factor, so it is ignored in the score.`;
+  if (applicantScore >= 78) return `This may strengthen your application at this school because it is listed as ${importance}.`;
+  if (applicantScore < 58) return `This could matter more at this college because it is listed as ${importance}; add clearer evidence if possible.`;
+  return `This factor is included because ${school.name} lists it as ${importance}.`;
+}
+
+function contextualNote(label, importance, value, school, context = {}) {
+  if (label === "Alumni/ae relation") {
+    const matching = context.matchingAlumniRelations || [];
+    if (!matching.length) return "";
+    if (importance === "Not Considered") return `A listed alumni relation matches ${school.name}, but alumni/ae relation is marked as Not Considered in the school data, so it should not affect this review.`;
+    return `A listed alumni relation matches ${school.name}, and alumni/ae relation is marked as ${importance} in the school data. This may provide context, but it should not be treated as a guarantee or a substitute for academic and personal fit.`;
+  }
+  if (label === "First generation" && importance !== "Not Considered" && context.profileData?.firstGeneration === "Yes") return `First-generation status is listed as ${importance} at this school, so it may provide helpful context for the applicant's educational background.`;
+  if (label === "State residency" && importance !== "Not Considered" && context.profileData?.stateResidency) return `State residency is ${context.profileData.stateResidency}; because this school lists state residency as ${importance}, public-university tuition or in-state review context may matter. This should not be treated as a guarantee.`;
+  if (label === "Geographical residence" && importance !== "Not Considered" && value) return `Geographical residence is listed as ${importance}, but it should not be treated as a guaranteed advantage.`;
+  if (label === "Religious affiliation/commitment" && importance === "Not Considered" && value) return `Religious affiliation/commitment is listed as Not Considered at this school and should not affect this recommendation.`;
+  if (importance === "Not Considered") return "";
+  return `${label} is listed as ${importance}. This factor may provide context, but it should not be treated as a guarantee.`;
+}
+
+function buildImprovementNotes(factors, school) {
+  const priorities = factors
+    .filter((factor) => factor.importance === "Very Important" || factor.importance === "Important")
+    .sort((a, b) => a.applicantScore - b.applicantScore)
+    .slice(0, 4);
+  if (!priorities.length) return [`Verify ${school.name}'s current CDS and admissions pages before drawing conclusions.`];
+  return priorities.map((factor) => `Improve ${factor.factor.toLowerCase()} evidence because ${school.name} marks it as ${factor.importance}.`);
+}
+
+function markdownToHtml(markdown) {
+  const cleaned = escapeHtml(markdown).replace(/\*\*/g, "");
+  const parts = cleaned.split(/\n(?=# )/g).filter(Boolean);
+  if (parts.length > 1) {
+    return parts.map((part) => {
+      const [headingLine, ...lines] = part.trim().split("\n");
+      const heading = headingLine.replace(/^#\s*/, "");
+      const body = lines.map((line) => line.trim()).filter(Boolean).map((line) => {
+        if (/^- /.test(line)) return `<li>${line.replace(/^- /, "")}</li>`;
+        return `<p>${line}</p>`;
+      }).join("");
+      const withLists = body.replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>");
+      return `<section class="report-section"><h3>${heading}</h3>${withLists}</section>`;
+    }).join("");
+  }
+  return cleaned
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^# (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^\d+\. (.*)$/gm, "<p>$1</p>")
+    .replace(/^- (.*)$/gm, "<ul><li>$1</li></ul>")
+    .replace(/\n{2,}/g, "<br>");
+}
+
+function cleanGeneratedReport(text, scoringResults, schoolProfile) {
+  const reportContext = scoringResults?.student ? scoringResults : buildCompactReportContext(getProfileData(), schoolProfile || getSchoolProfile(scoringResults?.schoolName), scoringResults || scoreApplicantForSchool(getProfileData(), getReviewerSchool()));
+  let output = String(text || "")
+    .replace(/\*\*/g, "")
+    .replace(/Intented Major/gi, "Intended Major")
+    .replace(/This school may be a reach, target, or likely option depending on the full applicant pool\.?/gi, "")
+    .replace(/Use this score as a fit signal, not as an admissions probability\.?/gi, "")
+    .replace(/this school's emphasis on ([^.]+) is a weakness/gi, "the applicant should clarify evidence for $1")
+    .replace(/the school's emphasis on ([^.]+) is a weakness/gi, "the applicant should clarify evidence for $1");
+  if (!reportContext.rankingsContext?.include) {
+    output = output.replace(/# Rankings Context[\s\S]*?(?=\n# |$)/i, "");
+  }
+  output = ensureReportSections(output);
+  output = dedupeStrings(output.split("\n")).join("\n");
+  const disclaimer = "This tool does not provide exact admissions probabilities. This tool should not be read as saying a student will or will not be admitted. Admissions factor ratings, rankings, and school profile data come from the app's school data and should be verified against the current Common Data Set, admissions site, and ranking source.";
+  output = output.replace(/# Disclaimer[\s\S]*$/i, "").trim();
+  return `${output}\n\n# Disclaimer\n${disclaimer}`;
+}
+
+function validateGeneratedReport(output, reportContext) {
+  const text = String(output || "");
+  if (!text.trim()) return false;
+  if (/context window|School Knowledge Base Profile|Limited information available|State Residency:/i.test(text)) return false;
+  if ((text.match(/# Disclaimer/gi) || []).length > 1) return false;
+  const category = reportContext.student?.majorCategory;
+  if (category !== "engineeringCS" && /For engineering\/ECE|Electrical Engineering and Computer Sciences/i.test(text)) return false;
+  if (category === "businessSocialScience" && /\b(circuits|hardware)\b/i.test(text) && !/operations|markets|productivity|business|innovation|data-driven/i.test(text)) return false;
+  const headings = [...text.matchAll(/^#\s+(.+)$/gm)].map((match) => match[1].trim().toLowerCase());
+  return headings.length === new Set(headings).size;
+}
+
+function ensureReportSections(text) {
+  const required = ["Student Profile", "School Fit Summary", "Academic Fit", "Major Fit", "Activities & Impact", "Additional Considerations", "Suggested Next Steps"];
+  let output = text.trim();
+  required.forEach((heading) => {
+    if (!new RegExp(`# ${heading}\\b`, "i").test(output)) output += `\n\n# ${heading}\nLimited information available.`;
+  });
+  return output;
+}
+
+function dedupeStrings(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = String(item).trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function profileInput(label, key, placeholder, type = "text") {
   return field(label, `<input data-profile="${key}" value="${escapeHtml(state.profile[key] || "")}" type="${type}" placeholder="${placeholder}" />`);
+}
+
+function profileTextarea(label, key, placeholder) {
+  return field(label, `<textarea data-profile="${key}" rows="3" placeholder="${escapeHtml(placeholder)}">${escapeHtml(state.profile[key] || "")}</textarea>`);
+}
+
+function profileSelect(label, key, options) {
+  return field(label, `<select data-profile="${key}">${options.map((option) => `<option value="${escapeHtml(option)}" ${option === (state.profile[key] || "") ? "selected" : ""}>${escapeHtml(option || "Select")}</option>`).join("")}</select>`);
+}
+
+function courseChipInput(label, key, options, placeholder) {
+  const selected = getCourseArray(key);
+  const listId = `${key}-options`;
+  return `
+    <div class="chip-field">
+      <div class="chip-label"><span>${label}</span><small>${selected.length} selected</small></div>
+      <div class="chip-list">${selected.map((course) => `<button class="chip" data-remove-course="${key}" data-course="${escapeHtml(course)}" type="button">${escapeHtml(course)} <span aria-hidden="true">x</span></button>`).join("") || `<span class="muted">None added yet.</span>`}</div>
+      <div class="chip-add">
+        <input data-course-input="${key}" list="${listId}" placeholder="${escapeHtml(placeholder)}" />
+        <button class="btn" data-add-course="${key}" type="button">Add</button>
+      </div>
+      <datalist id="${listId}">${options.map((option) => `<option value="${escapeHtml(option)}"></option>`).join("")}</datalist>
+    </div>
+  `;
+}
+
+function majorSelector() {
+  const major = state.profile.intendedMajor || "";
+  const listId = "major-options";
+  return `
+    <div class="field major-field">
+      <span>Intended major</span>
+      <div class="chip-list">${major ? `<button class="chip" data-clear-major type="button">${escapeHtml(major)} <span aria-hidden="true">x</span></button>` : `<span class="muted">No major selected.</span>`}</div>
+      <div class="chip-add">
+        <input data-major-input list="${listId}" value="${escapeHtml(major)}" placeholder="Search or add custom major" />
+        <button class="btn" data-set-major type="button">Set major</button>
+      </div>
+      <datalist id="${listId}">${Object.entries(MAJOR_OPTIONS).map(([group, majors]) => majors.map((option) => `<option value="${escapeHtml(option)}" label="${escapeHtml(group)}"></option>`).join("")).join("")}</datalist>
+    </div>
+  `;
 }
 
 function field(label, control) {
@@ -859,9 +2163,96 @@ function bindEvents() {
   document.querySelectorAll("[data-profile]").forEach((input) => {
     input.addEventListener("change", () => {
       state.profile[input.dataset.profile] = input.value;
+      state.aiReport = "";
       save();
       render();
     });
+  });
+
+  document.querySelectorAll("[data-add-course]").forEach((button) => button.addEventListener("click", () => {
+    const key = button.dataset.addCourse;
+    const input = document.querySelector(`[data-course-input="${key}"]`);
+    const value = String(input?.value || "").trim();
+    if (!value) return;
+    const current = getCourseArray(key);
+    if (!current.some((course) => normalizeText(course) === normalizeText(value))) {
+      state.profile[key] = [...current, value];
+      state.aiReport = "";
+      save();
+    }
+    render();
+  }));
+
+  document.querySelectorAll("[data-course-input]").forEach((input) => input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    document.querySelector(`[data-add-course="${input.dataset.courseInput}"]`)?.click();
+  }));
+
+  document.querySelectorAll("[data-remove-course]").forEach((button) => button.addEventListener("click", () => {
+    const key = button.dataset.removeCourse;
+    const course = button.dataset.course;
+    state.profile[key] = getCourseArray(key).filter((item) => item !== course);
+    state.aiReport = "";
+    save();
+    render();
+  }));
+
+  document.querySelector("[data-set-major]")?.addEventListener("click", () => {
+    const value = String(document.querySelector("[data-major-input]")?.value || "").trim();
+    if (!value) return;
+    state.profile.intendedMajor = value;
+    state.profile.majorCategory = getMajorCategory(value);
+    state.aiReport = "";
+    save();
+    render();
+  });
+
+  document.querySelector("[data-major-input]")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    document.querySelector("[data-set-major]")?.click();
+  });
+
+  document.querySelector("[data-clear-major]")?.addEventListener("click", () => {
+    state.profile.intendedMajor = "";
+    state.profile.majorCategory = "";
+    state.aiReport = "";
+    save();
+    render();
+  });
+
+  document.querySelector("[data-reviewer-school]")?.addEventListener("change", (event) => {
+    state.reviewerSchool = event.currentTarget.value;
+    state.aiReport = "";
+    save();
+    render();
+  });
+
+  document.querySelector("[data-generate-report]")?.addEventListener("click", async () => {
+    const school = getReviewerSchool();
+    const profileData = getProfileData();
+    const scoringResults = scoreApplicantForSchool(profileData, school);
+    state.aiReport = "";
+    state.aiStatus = "Preparing school-specific scoring results...";
+    state.aiProgress = 0;
+    render();
+    try {
+      const report = await generateProfileRecommendation(profileData, scoringResults, getSchoolProfile(school.name));
+      state.aiReport = report;
+      state.aiStatus = state.aiUsedFallback ? "Deterministic fallback report generated in this browser." : "Report generated locally in this browser.";
+      state.aiProgress = 1;
+      save();
+      render();
+    } catch (error) {
+      if (!webLLMService.isWebGPUSupported()) {
+        state.aiStatus = "WebGPU is not supported in this browser. The rule-based score is still available, but local AI generation needs a WebGPU-capable browser.";
+      } else {
+        state.aiStatus = `Could not generate local AI report: ${error.message}`;
+      }
+      state.aiProgress = 0;
+      render();
+    }
   });
 
   document.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => {
@@ -932,6 +2323,21 @@ function bindEvents() {
     render();
   });
 
+  document.querySelector("#alumni-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const relation = {
+      institutionName: String(form.get("institutionName") || "").trim(),
+      relationshipType: String(form.get("relationshipType") || "").trim(),
+    };
+    if (!relation.institutionName) return;
+    state.profile.alumniRelations = [...getAlumniRelationsFromProfile(state.profile), relation];
+    state.profile.alumniRelation = "";
+    state.aiReport = "";
+    save();
+    render();
+  });
+
   document.querySelectorAll("[data-remove-activity]").forEach((button) => button.addEventListener("click", () => {
     state.activities.splice(Number(button.dataset.removeActivity), 1);
     save();
@@ -943,6 +2349,21 @@ function bindEvents() {
     save();
     render();
   }));
+
+  document.querySelectorAll("[data-remove-alumni]").forEach((button) => button.addEventListener("click", () => {
+    state.profile.alumniRelations = getAlumniRelationsFromProfile(state.profile).filter((_, index) => index !== Number(button.dataset.removeAlumni));
+    state.aiReport = "";
+    save();
+    render();
+  }));
+
+  document.querySelector("[data-clear-alumni]")?.addEventListener("click", () => {
+    state.profile.alumniRelations = [];
+    state.profile.alumniRelation = "";
+    state.aiReport = "";
+    save();
+    render();
+  });
 
 }
 
@@ -1032,11 +2453,6 @@ function satMidpoint(range) {
   const parts = range.match(/\d+/g)?.map(Number) || [];
   if (parts.length < 2) return "See CDS";
   return Math.round((parts[0] + parts[1]) / 2).toString();
-}
-
-function profileScore() {
-  const basics = ["name", "location", "gradYear", "gpa", "sat", "act"].filter((key) => state.profile[key]).length;
-  return Math.min(100, Math.round((basics / 6) * 45 + Math.min(state.activities.length, 10) * 4 + Math.min(state.awards.length, 5) * 3));
 }
 
 function formatSize(size) {
