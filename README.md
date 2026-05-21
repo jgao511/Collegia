@@ -1,4 +1,4 @@
-# College Profile AI
+# Collegia
 
 An AI-powered college application profile analysis platform that helps students evaluate their academic profile, extracurriculars, and overall fit for universities across the United States.
 
