@@ -136,12 +136,27 @@ const SHORT_REPORT_SYSTEM_PROMPT = `
 You write concise college-fit reports from provided context only.
 Do not invent facts, rankings, admissions stats, policies, or programs.
 Do not dump raw data or repeat sections.
+Use named undergraduate schools/programs only from selectedSchoolEnrichment.
 Do not mention engineering/ECE advice unless majorCategory is engineeringCS.
 For businessSocialScience majors, focus on economics, business, policy, data, leadership, research, and quantitative reasoning.
 Omit empty optional sections.
 Keep the report short and readable.
 Use the requested section order.
 The disclaimer must appear once at the end.
+`;
+
+const AI_SUMMARY_SYSTEM_PROMPT = `
+You write short paragraph-style college-fit snapshots.
+Use only the provided compact context.
+Do not use section headings.
+Do not copy the structured generated summary.
+Do not output bullets unless absolutely necessary.
+Write 1-2 concise paragraphs, 4-7 sentences total, then append the required disclaimer.
+Synthesize the selected sections into natural advisor-style prose.
+Mention the selected school, intended major, key school/program fit, academic/coursework issue, activity/impact issue, and 1-2 next steps when available.
+Do not invent facts, rankings, admissions stats, programs, or policies.
+Do not give engineering/ECE advice for non-engineering majors unless clearly reframed.
+The AI Summary must feel different from the Generated Summary.
 `;
 
 const holisticFactors = {
@@ -233,6 +248,27 @@ const factorConfig = {
 
 const WEBLLM_MODEL = "Llama-3.2-1B-Instruct-q4f32_1-MLC";
 const REPORT_VERSION = "advisor-v6";
+const DISCLAIMER_TEXT = "This tool does not provide exact admissions probabilities. This tool should not be read as saying a student will or will not be admitted. Admissions factor ratings, rankings, and school profile data come from the app’s school data and should be verified against the current Common Data Set, admissions site, and ranking source.";
+const DEFAULT_SUMMARY_SECTIONS = {
+  studentProfile: true,
+  schoolFit: true,
+  academicFit: true,
+  majorFit: true,
+  rankingsContext: false,
+  activitiesImpact: true,
+  additionalConsiderations: false,
+  suggestedNextSteps: true,
+};
+const SUMMARY_SECTION_LABELS = {
+  studentProfile: "Student Profile",
+  schoolFit: "School Fit Summary",
+  academicFit: "Academic Fit",
+  majorFit: "Major Fit",
+  rankingsContext: "Rankings Context",
+  activitiesImpact: "Activities & Impact",
+  additionalConsiderations: "Additional Considerations",
+  suggestedNextSteps: "Suggested Next Steps",
+};
 const STORAGE_KEYS = {
   profile: "collegiaProfile",
   myList: "collegiaMyList",
@@ -570,6 +606,9 @@ const state = {
   filters: { search: "", state: "All", type: "All", region: "All", size: "All", satMin: "400", satMax: "1600", actMin: "1", actMax: "36", acceptance: "100", sort: "Default" },
   reviewerSchool: localStorage.getItem(STORAGE_KEYS.reviewerSchool) || localStorage.getItem(OLD_STORAGE_KEYS.reviewerSchool) || "",
   aiReport: localStorage.getItem(STORAGE_KEYS.lastReportVersion) === REPORT_VERSION ? localStorage.getItem(STORAGE_KEYS.lastReport) || "" : "",
+  generatedSummary: "",
+  selectedSummarySections: { ...DEFAULT_SUMMARY_SECTIONS, ...(loadSettings().selectedSummarySections || {}) },
+  aiSummaryStatus: "",
   aiStatus: "",
   aiProgress: 0,
   aiUsedFallback: false,
@@ -680,6 +719,54 @@ ${JSON.stringify(compactContext)}`;
   }
 }
 
+async function safeGenerateAISummary(reportContext, selectedSections) {
+  state.aiUsedFallback = false;
+  const compactContext = trimReportContextForModel(buildSelectedReportContext(reportContext, selectedSections), 900);
+  const generatedSummary = generateStructuredSummary(reportContext, selectedSections);
+  const fallback = generateConciseAISummaryFallback(reportContext, selectedSections);
+  const userPrompt = `Write a paragraph-style AI Summary from this compact context.
+Respect selectedSections, but do not use their headings.
+Do not mirror the Generated Summary structure or wording.
+Write 1-2 short paragraphs, 4-7 sentences total, then the required disclaimer line.
+
+Context:
+${JSON.stringify(compactContext)}`;
+  const estimatedTokens = estimatePromptTokens(AI_SUMMARY_SYSTEM_PROMPT + userPrompt);
+  if (!webLLMService.isWebGPUSupported() || estimatedTokens > 2600) {
+    state.aiUsedFallback = true;
+    return fallback;
+  }
+  try {
+    const engine = await webLLMService.loadModel();
+    state.aiStatus = "Condensing profile fit...";
+    state.aiProgress = Math.max(state.aiProgress || 0, 0.35);
+    render();
+    const response = await engine.chat.completions.create({
+      messages: [
+        { role: "system", content: AI_SUMMARY_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.25,
+      max_tokens: 420,
+    });
+    const rawOutput = response.choices?.[0]?.message?.content || "";
+    if (looksLikeStructuredSummary(rawOutput) || /Structured summary from selected sections/i.test(rawOutput)) {
+      state.aiUsedFallback = true;
+      return fallback;
+    }
+    const output = cleanAISummaryOutput(rawOutput);
+    const bodyOnly = output.replace(/Disclaimer:[\s\S]*$/i, "").trim();
+    if (bodyOnly.length < 80 || isTooSimilarToGeneratedSummary(output, generatedSummary)) {
+      state.aiUsedFallback = true;
+      return fallback;
+    }
+    return output;
+  } catch {
+    state.aiUsedFallback = true;
+    return fallback;
+  }
+}
+
 function estimatePromptTokens(text) {
   return Math.ceil(String(text || "").length / 4);
 }
@@ -776,6 +863,7 @@ function save() {
   localStorage.setItem(STORAGE_KEYS.reviewerSchool, state.reviewerSchool || "");
   localStorage.setItem(STORAGE_KEYS.lastReport, state.aiReport || "");
   localStorage.setItem(STORAGE_KEYS.lastReportVersion, REPORT_VERSION);
+  state.settings.selectedSummarySections = state.selectedSummarySections;
   saveSettings(state.settings);
   state.savedAt = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
@@ -902,10 +990,10 @@ function renderMyList() {
       <div class="hero-copy">
         <div class="eyebrow">My List</div>
         <h1>Your saved college list.</h1>
-        <p>Schools saved in this browser stay available on this device. Cloud sync/login can be added later with a backend such as Firebase or Supabase; GitHub Pages alone cannot securely sync accounts across devices.</p>
+        <p>Review, compare, and remove the schools you have saved.</p>
       </div>
       <aside class="snapshot">
-        <div class="notice">Browser save is free and works now. It is device/browser-specific and does not sync automatically.</div>
+        <div class="notice">Saved locally on this device.</div>
       </aside>
     </section>
     <section class="school-grid list-grid">
@@ -1118,31 +1206,42 @@ function athleticsLogo(sports) {
 
 function renderProfile() {
   return `
-    <section class="layout-2">
-      <div class="form-stack">
-        <section class="panel">
-          <div class="section-head"><div><h2>General Information</h2></div></div>
+    <section class="profile-layout">
+      <div class="profile-grid">
+        <section class="panel profile-section-card">
+          <div class="section-head"><div><h2>Basic Information</h2></div></div>
           <div class="form-content compact-grid">
             ${profileInput("Name", "name", "Avery Student")}
-            ${profileInput("Hometown", "location", "Queens, New York")}
+            ${profileInput("Location", "location", "Queens, New York")}
             ${profileInput("Graduation year", "gradYear", "2027", "number")}
             ${profileSelect("State residency", "stateResidency", ["", ...US_STATES.filter((item) => item !== "All")])}
+            ${profileSelect("First-generation status", "firstGeneration", ["", "No", "Yes", "Prefer not to say"])}
           </div>
+          ${renderAlumniRelationsForm()}
         </section>
-        <section class="panel">
-          <div class="section-head"><div><h2>Academic</h2></div></div>
+
+        <section class="panel profile-section-card">
+          <div class="section-head"><div><h2>Academic Profile</h2></div></div>
           <div class="form-content compact-grid">
             ${profileInput("GPA", "gpa", "3.85")}
             ${profileInput("SAT", "sat", "1450", "number")}
             ${profileInput("ACT", "act", "33", "number")}
             ${profileInput("Class rank", "classRank", "Top 10% or 12/350", "text")}
             ${profileInput("Class size", "classSize", "350", "number")}
+            ${profileTextarea("Testing notes", "testingNotes", "Optional context about testing plans or score reporting")}
           </div>
         </section>
-        <section class="panel wide-input-panel">
-          <div class="section-head"><div><h2>Academic Planning</h2><p class="muted">Add major, AP/IB, honors, dual enrollment, and other advanced coursework.</p></div></div>
+
+        <section class="panel profile-section-card">
+          <div class="section-head"><div><h2>Intended Major</h2><p class="muted">Search, select, or add a custom major.</p></div></div>
           <div class="form-content">
             ${majorSelector()}
+          </div>
+        </section>
+
+        <section class="panel profile-section-card profile-card-full">
+          <div class="section-head"><div><h2>Coursework & Rigor</h2><p class="muted">Add AP, IB, Honors, Dual Enrollment, and custom advanced coursework.</p></div></div>
+          <div class="form-content profile-course-grid">
             ${courseChipInput("AP courses", "apCourses", AP_COURSES, "Search or add AP course")}
             ${courseChipInput("IB courses", "ibCourses", IB_COURSES, "Search or add IB course")}
             ${courseChipInput("Honors courses", "honorsCourses", [], "Add honors course")}
@@ -1151,43 +1250,35 @@ function renderProfile() {
             ${profileTextarea("Senior-year courses", "seniorYearCourses", "AP Physics C, AP Statistics, Multivariable Calculus")}
           </div>
         </section>
-        <section class="panel">
-          <div class="section-head"><div><h2>Other Inputs</h2></div></div>
-          <div class="form-content compact-grid">
-            ${profileSelect("First-generation status", "firstGeneration", ["", "No", "Yes", "Prefer not to say"])}
-            ${profileTextarea("Volunteer work", "volunteerWork", "Describe service, if relevant")}
-            ${profileTextarea("Work experience", "workExperience", "Describe jobs, internships, or family responsibilities")}
+
+        <section class="panel profile-section-card profile-card-full">
+          <div class="section-head"><div><h2>Activities & Experience</h2><p class="muted">Add activities, work, and service with enough detail to show evidence.</p></div></div>
+          <div class="form-content profile-experience-grid">
+            <form class="activity-form-grid" id="activity-form">
+              ${field("Category", activitySelect())}
+              ${field("Activity name / role", `<input name="title" required placeholder="Robotics team captain" />`)}
+              ${field("Description / impact", `<textarea name="description" rows="4" required placeholder="What did you do, lead, create, improve, measure, or change?"></textarea>`)}
+              <div class="form-action-row"><button class="btn primary" ${state.activities.length >= 10 ? "disabled" : ""}>Add Activity</button></div>
+            </form>
           </div>
-          ${renderAlumniRelationsForm()}
+          <div class="profile-list-wrap">
+            <div class="entry-list">${state.activities.map((a, i) => `<div class="entry"><h4>${escapeHtml(a.title)}</h4><p>${escapeHtml(a.category || "")}</p><p>${escapeHtml(a.description || "")}</p><button class="btn" data-remove-activity="${i}">Remove</button></div>`).join("") || `<div class="empty">No activities yet.</div>`}</div>
+          </div>
         </section>
-        <section class="panel">
-          <div class="section-head"><div><h2>Activities</h2><p class="muted">${state.activities.length}/10 Common App slots used.</p></div></div>
-          <form class="form-content" id="activity-form">
-            ${field("Category", activitySelect())}
-            ${field("Role / organization", `<input name="title" required placeholder="Robotics team captain" />`)}
-            ${field("Description", `<textarea name="description" rows="3" required placeholder="What did you do, lead, create, or improve?"></textarea>`)}
-            <button class="btn primary" ${state.activities.length >= 10 ? "disabled" : ""}>Add Activity</button>
-          </form>
-        </section>
-        <section class="panel">
-          <div class="section-head"><div><h2>Awards</h2><p class="muted">${state.awards.length}/5 Common App slots used.</p></div></div>
-          <form class="form-content" id="award-form">
+
+        <section class="panel profile-section-card profile-card-full">
+          <div class="section-head"><div><h2>Awards</h2><p class="muted">Add honors, awards, recognitions, or distinctions.</p></div></div>
+          <form class="form-content entry-form-grid" id="award-form">
             ${field("Award", `<input name="title" required placeholder="National Merit Commended Student" />`)}
             ${field("Level", select("level", ["School", "Regional", "State", "National", "International"], "School", true))}
             <button class="btn primary" ${state.awards.length >= 5 ? "disabled" : ""}>Add Award</button>
           </form>
-        </section>
-        <section class="panel">
-          <div class="section-head"><div><h2>Save & Sync</h2></div></div>
-          <div class="form-content">
-            <p class="muted">Saved locally in this browser. Cloud sync/login is coming later.</p>
-            <p class="muted">Browser save is free and works on GitHub Pages. Real login/sync needs a backend/auth provider such as Firebase or Supabase, which can start free but may cost money as usage grows. GitHub Pages alone cannot securely store user accounts or sync data across devices.</p>
+          <div class="profile-list-wrap">
+            <div class="entry-list">${state.awards.map((a, i) => `<div class="entry"><h4>${escapeHtml(a.title)}</h4><p>${escapeHtml(a.level || "")}</p><button class="btn" data-remove-award="${i}">Remove</button></div>`).join("") || `<div class="empty">No awards yet.</div>`}</div>
           </div>
         </section>
+
       </div>
-      <aside class="profile-preview">
-        ${renderProfilePreview()}
-      </aside>
     </section>
   `;
 }
@@ -1241,7 +1332,10 @@ function renderAlumniRelationsForm() {
 
 function renderReviewer() {
   const school = getReviewerSchool();
-  const scoringResults = scoreApplicantForSchool(getProfileData(), school);
+  const profileData = getProfileData();
+  const schoolProfile = getSchoolProfile(school.name);
+  const scoringResults = scoreApplicantForSchool(profileData, school);
+  const reportContext = buildCompactReportContext(profileData, schoolProfile, scoringResults);
   const importanceSlices = getImportanceSlices(scoringResults);
   const savedSchools = getSavedSchools();
   return `
@@ -1264,10 +1358,49 @@ function renderReviewer() {
       </div>
       <div class="reviewer-split">
         <div class="importance-chart">
-          <div class="pie" style="${pieStyle(importanceSlices)}"></div>
-          <div class="legend">${importanceSlices.map((slice) => `<span><i style="background:${slice.color}"></i>${slice.label}</span>`).join("")}</div>
+          <div>
+            <h3>What This School Emphasizes</h3>
+            <p class="muted">Based on this school's listed admissions factors.</p>
+          </div>
+          <div class="pie" style="${pieStyle(importanceSlices)}" aria-label="Admissions factor weighting pie chart"></div>
+          <div class="legend">${importanceSlices.map((slice) => `<span class="legend-item" data-pie-slice tabindex="0"><i style="background:${slice.color}"></i>${slice.label}<em>${formatNumber(slice.value)} pts · ${slice.percentLabel}</em><b class="slice-tooltip">${slice.label} — ${formatNumber(slice.value)} pts — ${slice.percentLabel}</b></span>`).join("")}</div>
         </div>
-        <div class="ai-report">${state.aiReport ? markdownToHtml(state.aiReport) : renderBriefRuleReport(scoringResults)}</div>
+        <div class="reviewer-workspace">
+          <section class="summary-selector-card">
+            <div class="section-head no-pad">
+              <div>
+                <h3>Choose sections to include</h3>
+                <p class="muted">Disclaimer is always included automatically.</p>
+              </div>
+              <div class="summary-selector-actions">
+                <button class="btn ghost" data-select-all-sections type="button">Select all</button>
+                <button class="btn ghost" data-clear-optional-sections type="button">Clear optional</button>
+              </div>
+            </div>
+            <div class="summary-section-grid">
+              ${Object.entries(SUMMARY_SECTION_LABELS).map(([key, label]) => `
+                <label class="summary-toggle">
+                  <input type="checkbox" data-summary-section="${key}" ${state.selectedSummarySections[key] ? "checked" : ""} />
+                  <span>${label}</span>
+                </label>
+              `).join("")}
+            </div>
+            <button class="btn primary" data-generate-summary type="button">Generate Summary</button>
+          </section>
+          <section class="summary-output-card">
+            <div class="section-head no-pad"><div><h3>Generated Summary</h3><p class="muted">Section-based summary from your choices.</p></div></div>
+            <div class="ai-report">${state.generatedSummary ? markdownToHtml(state.generatedSummary) : `<div class="empty">Choose sections, then generate a summary.</div>`}</div>
+          </section>
+          <section class="summary-output-card ai-summary-card">
+            <div class="section-head no-pad"><div><h3>AI Summary</h3><p class="muted">Concise local AI version of the selected sections.</p></div></div>
+            <div class="ai-actions">
+              <button class="btn primary" data-generate-ai-summary ${savedSchools.length ? "" : "disabled"} type="button">Generate AI Summary</button>
+              <div class="ai-loading ${state.aiSummaryStatus ? "active" : ""}"><span style="width:${Math.round((state.aiProgress || 0) * 100)}%"></span></div>
+            </div>
+            ${state.aiSummaryStatus ? `<div class="ai-working"><span></span><span></span><span></span> ${escapeHtml(state.aiSummaryStatus)}</div>` : state.aiStatus ? `<p class="muted">${escapeHtml(state.aiStatus)}</p>` : ""}
+            <div class="ai-report ai-summary-output">${state.aiReport ? markdownToHtml(state.aiReport) : `<div class="empty">No AI summary generated yet.</div>`}</div>
+          </section>
+        </div>
       </div>
       <details class="factor-group">
         <summary>More info</summary>
@@ -1292,20 +1425,6 @@ function renderReviewer() {
         </div>
       </div>
       </details>
-    </section>
-    <section class="panel profile-card reviewer-panel">
-      <div class="section-head no-pad">
-        <div>
-          <h2>AI Report</h2>
-          <p class="muted">${webLLMService.getSupportMessage()}</p>
-        </div>
-        <span class="chip">${WEBLLM_MODEL}</span>
-      </div>
-      ${state.aiStatus ? `<p class="muted">${escapeHtml(state.aiStatus)}</p>` : ""}
-      <div class="ai-actions">
-        <button class="btn primary" data-generate-report ${savedSchools.length ? "" : "disabled"}>Generate Local AI Report</button>
-        <div class="ai-loading ${state.aiStatus ? "active" : ""}"><span style="width:${Math.round((state.aiProgress || 0) * 100)}%"></span></div>
-      </div>
     </section>
   `;
 }
@@ -1533,6 +1652,7 @@ function buildCompactReportContext(profileData, schoolProfile, scoringResults) {
       recommendationIdeas: truncateArray(majorGuidance.recommendationIdeas, 3),
     },
     majorSchoolFit: alignment,
+    selectedSchoolEnrichment: enrichment,
     schoolEnrichment: enrichment,
     academicNotes: [
       scoringResults.testingGuidance?.note,
@@ -1590,19 +1710,65 @@ function strengthMatchesMajorCategory(strength, guidance) {
   });
 }
 
+function getRelevantUndergraduateSchools(schoolProfile, intendedMajor, majorCategory) {
+  const enrichment = schoolProfile.schoolEnrichment || emptySchoolEnrichment();
+  return rankRelevantEnrichmentItems(enrichment.undergraduateSchools || [], intendedMajor, majorCategory).slice(0, 3);
+}
+
+function getRelevantSignaturePrograms(schoolProfile, intendedMajor, majorCategory) {
+  const enrichment = schoolProfile.schoolEnrichment || emptySchoolEnrichment();
+  const programs = []
+    .concat(enrichment.signaturePrograms || [])
+    .concat(enrichment.experientialOpportunities || [])
+    .concat(enrichment.studentOrganizationsOrCommonPathways || []);
+  return rankRelevantEnrichmentItems(programs, intendedMajor, majorCategory).slice(0, 4);
+}
+
+function rankRelevantEnrichmentItems(items, intendedMajor, majorCategory) {
+  return (items || [])
+    .map((item) => ({ item, score: scoreEnrichmentItem(item, intendedMajor, majorCategory) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => ({
+      name: entry.item.name || entry.item.description || "",
+      category: entry.item.category || "",
+      description: truncateText(entry.item.description || entry.item.notes || "", 160),
+      useInReportWhen: truncateText(entry.item.useInReportWhen || "", 160),
+    }))
+    .filter((item) => item.name);
+}
+
+function scoreEnrichmentItem(item, intendedMajor, majorCategory) {
+  const guidance = MAJOR_GUIDANCE[majorCategory] || MAJOR_GUIDANCE.other;
+  const rawText = normalizeText([item.name, item.category, item.description, item.notes].filter(Boolean).join(" "));
+  const tagText = normalizeText((item.relevantMajors || []).join(" "));
+  const text = `${rawText} ${tagText}`.trim();
+  const major = normalizeText(intendedMajor);
+  let score = 0;
+  if (major && text.includes(major)) score += 10;
+  (guidance.relevantSchoolStrengthKeywords || []).forEach((keyword) => {
+    const key = normalizeText(keyword);
+    if (key && (rawText.includes(key) || key.includes(rawText))) score += 4;
+  });
+  (guidance.evidenceToLookFor || []).slice(0, 8).forEach((keyword) => {
+    const key = normalizeText(keyword);
+    if (key && rawText.includes(key)) score += 1;
+  });
+  if (majorCategory === "businessSocialScience" && /business|economics|policy|government|international|information|data|management|commerce|finance|entrepreneur|arts and sciences|letters and science|literature science|liberal arts|social sciences/i.test(rawText)) score += 4;
+  if (majorCategory === "engineeringCS" && /engineering|computing|computer science|technology|robotics|ai|design|startup|data|create x|entrepreneur/i.test(rawText)) score += 4;
+  if (majorCategory === "lifeSciencesHealth" && /biology|health|medical|nursing|neuro|public health|science|chemistry/i.test(rawText)) score += 4;
+  if (majorCategory === "humanitiesArtsMedia" && /arts|media|film|journalism|communication|music|theater|design|architecture|writing/i.test(rawText)) score += 4;
+  return score;
+}
+
 function getRelevantSchoolEnrichment(schoolProfile, intendedMajor, majorCategory) {
   const enrichment = schoolProfile.schoolEnrichment || emptySchoolEnrichment();
-  const matches = (item) => {
-    const majors = item?.relevantMajors || [];
-    if (!majors.length) return false;
-    const majorText = normalizeText(intendedMajor);
-    return majors.some((major) => normalizeText(major) === majorCategory || normalizeText(majorText).includes(normalizeText(major)) || normalizeText(major).includes(majorText));
-  };
-  const relevantUndergraduateSchools = truncateArray((enrichment.undergraduateSchools || []).filter(matches), 2);
-  const relevantSignaturePrograms = truncateArray((enrichment.signaturePrograms || []).filter(matches), 2);
-  const relevantExperientialOpportunities = truncateArray((enrichment.experientialOpportunities || []).filter(matches), 2);
-  const relevantStudentPathways = truncateArray((enrichment.studentOrganizationsOrCommonPathways || []).filter(matches), 2);
-  const relevantLocationAdvantages = truncateArray((enrichment.locationAdvantages || []).filter(matches), 1);
+  const relevantUndergraduateSchools = getRelevantUndergraduateSchools(schoolProfile, intendedMajor, majorCategory);
+  const relevantPrograms = getRelevantSignaturePrograms(schoolProfile, intendedMajor, majorCategory);
+  const relevantSignaturePrograms = relevantPrograms.filter((item) => item.category !== "Experiential opportunity" && item.category !== "Common pathway").slice(0, 3);
+  const relevantExperientialOpportunities = relevantPrograms.filter((item) => item.category === "Experiential opportunity").slice(0, 2);
+  const relevantStudentPathways = relevantPrograms.filter((item) => item.category === "Common pathway").slice(0, 2);
+  const relevantLocationAdvantages = rankRelevantEnrichmentItems(enrichment.locationAdvantages || [], intendedMajor, majorCategory).slice(0, 1);
   const total = relevantUndergraduateSchools.length + relevantSignaturePrograms.length + relevantExperientialOpportunities.length + relevantStudentPathways.length + relevantLocationAdvantages.length;
   if (!total && !enrichment.majorSpecificAdvice?.[majorCategory] && !enrichment.specificRecommendationIdeas?.[majorCategory]?.length) return {};
   return {
@@ -1628,6 +1794,9 @@ function trimReportContextForModel(reportContext, maxTokens) {
     if (compact.suggestedNextSteps?.length > 3) compact.suggestedNextSteps.pop();
     else if (compact.majorFitNotes?.length > 2) compact.majorFitNotes.pop();
     else if (compact.contextualNotes?.length > 2) compact.contextualNotes.pop();
+    else if (compact.selectedSchoolEnrichment?.relevantSignaturePrograms?.length > 2) compact.selectedSchoolEnrichment.relevantSignaturePrograms.pop();
+    else if (compact.selectedSchoolEnrichment?.relevantUndergraduateSchools?.length > 2) compact.selectedSchoolEnrichment.relevantUndergraduateSchools.pop();
+    else if (compact.selectedSchoolEnrichment?.specificRecommendationIdeas?.length > 2) compact.selectedSchoolEnrichment.specificRecommendationIdeas.pop();
     else if (compact.majorGuidance?.recommendationIdeas?.length > 2) compact.majorGuidance.recommendationIdeas.pop();
     else if (compact.majorGuidance?.evidenceToLookFor?.length > 5) compact.majorGuidance.evidenceToLookFor.pop();
     else if (compact.school?.strongestMajors?.length > 4) compact.school.strongestMajors.pop();
@@ -1653,11 +1822,17 @@ function generateDeterministicReport(reportContext) {
   const schoolFitStrengthText = relevantStrengths.length
     ? `relevant listed strengths in ${formatList(relevantStrengths.slice(0, 4))}`
     : `the school's broader profile: ${formatList((ctx.school.strongestMajors || []).slice(0, 4))}`;
+  const namedProgramSentence = buildNamedProgramFitSentence(ctx);
   const majorFitBody = [
+    namedProgramSentence,
     alignment.majorFitSummary,
     alignment.missingOrWeakFitNote,
+    ctx.selectedSchoolEnrichment?.majorSpecificAdvice,
     ctx.majorFitNotes?.find((note) => !note.includes(alignment.majorFitSummary || "")),
   ].filter(Boolean).join(" ");
+  const activitiesAdvice = ctx.selectedSchoolEnrichment?.specificRecommendationIdeas?.length
+    ? `Useful school-specific examples include ${formatList(ctx.selectedSchoolEnrichment.specificRecommendationIdeas.slice(0, 3))}.`
+    : "";
   return [
     reportSectionText("Student Profile", [
       `- ${[ctx.student.name, ctx.student.location, ctx.student.graduationYear && `Class of ${ctx.student.graduationYear}`].filter(Boolean).join(", ")}`,
@@ -1667,19 +1842,216 @@ function generateDeterministicReport(reportContext) {
       `- Major-relevant courses: ${majorCourseText}`,
       `- ${ctx.student.activitiesSummary || "Activities and awards are not listed yet."}`,
     ].join("\n")),
-    reportSectionText("School Fit Summary", `${ctx.school.name}: ${personality.replace(/\.$/, "")}. For a ${ctx.student.intendedMajor || "prospective"} applicant, the fit is strongest when the application connects ${ctx.majorGuidance.fitLanguage} with ${schoolFitStrengthText}.`),
+    reportSectionText("School Fit Summary", `${ctx.school.name}: ${personality.replace(/\.$/, "")}. ${namedProgramSentence ? `${namedProgramSentence} ` : ""}For a ${ctx.student.intendedMajor || "prospective"} applicant, the fit is strongest when the application connects ${ctx.majorGuidance.fitLanguage} with ${schoolFitStrengthText}.`),
     reportSectionText("Academic Fit", `The academic profile should be read through the factors this school considers. ${ctx.academicNotes.join(" ")} GPA, rank, rigor, and testing are useful signals only to the extent they are included in the school-specific factor data.`),
     reportSectionText("Major Fit", majorFitBody),
     rankings,
-    reportSectionText("Activities & Impact", `${ctx.majorGuidance.activityFraming} ${ctx.student.activitiesSummary || ""} The most useful activity descriptions should give concrete evidence: what was improved, measured, led, analyzed, built, organized, published, taught, or changed.`),
+    reportSectionText("Activities & Impact", `${ctx.majorGuidance.activityFraming} ${activitiesAdvice} ${ctx.student.activitiesSummary || ""} The most useful activity descriptions should give concrete evidence: what was improved, measured, led, analyzed, built, organized, published, taught, or changed.`),
     additional,
     reportSectionText("Suggested Next Steps", (ctx.suggestedNextSteps || []).map((step) => `- ${step}`).join("\n")),
-    reportSectionText("Disclaimer", "This tool does not provide exact admissions probabilities. This tool should not be read as saying a student will or will not be admitted. Admissions factor ratings, rankings, and school profile data come from the app's school data and should be verified against the current Common Data Set, admissions site, and ranking source."),
+    reportSectionText("Disclaimer", DISCLAIMER_TEXT),
   ].filter(Boolean).join("\n\n");
+}
+
+function generateStructuredSummary(reportContext, selectedSections = DEFAULT_SUMMARY_SECTIONS) {
+  const sections = getSummarySectionBodies(reportContext);
+  const output = Object.entries(SUMMARY_SECTION_LABELS)
+    .filter(([key]) => selectedSections[key])
+    .map(([key, title]) => {
+      const body = sections[key];
+      if (!body || (Array.isArray(body) && !body.length)) return "";
+      return reportSectionText(title, Array.isArray(body) ? body.map((item) => `- ${item}`).join("\n") : body);
+    })
+    .filter(Boolean)
+    .join("\n\n");
+  return appendDisclaimerOnce(output);
+}
+
+function generateConciseAISummaryFallback(reportContext, selectedSections = DEFAULT_SUMMARY_SECTIONS) {
+  const ctx = reportContext;
+  const sentences = [];
+  const nextSteps = (ctx.suggestedNextSteps || []).slice(0, 2);
+  const namedProgramSentence = selectedSections.schoolFit || selectedSections.majorFit ? buildNamedProgramFitSentence(ctx) : "";
+  const academicIssue = selectedSections.academicFit
+    ? (ctx.student.majorRelevantCourses || ctx.student.courseRigor || ctx.academicNotes?.[0] || "")
+    : "";
+  const activityIssue = selectedSections.activitiesImpact
+    ? [ctx.majorGuidance?.activityFraming, ctx.selectedSchoolEnrichment?.specificRecommendationIdeas?.length ? `Useful examples include ${formatList(ctx.selectedSchoolEnrichment.specificRecommendationIdeas.slice(0, 2))}.` : ""].filter(Boolean).join(" ")
+    : "";
+
+  if (selectedSections.studentProfile || selectedSections.schoolFit || selectedSections.majorFit) {
+    sentences.push(`Based on the current profile, this student is interested in ${ctx.student.intendedMajor || "an intended major"} at ${ctx.school.name}`);
+    sentences.push(namedProgramSentence || `${ctx.school.name}'s fit should be read through the school data currently available in Collegia`);
+  }
+  if (academicIssue) {
+    sentences.push(`The academic picture would be clearer with stronger course detail, especially ${stripReportPrefix(academicIssue)}`);
+  }
+  if (activityIssue) {
+    sentences.push(`For activities and impact, the application should make the evidence concrete: ${stripReportPrefix(activityIssue)}`);
+  }
+  if (selectedSections.suggestedNextSteps && nextSteps.length) {
+    sentences.push(`The most useful next steps are to ${nextSteps.map((step) => simplifyAISummaryNextStep(step)).join(" and to ")}`);
+  }
+  if (selectedSections.rankingsContext && ctx.rankingsContext?.include) {
+    sentences.push("Any rankings in the app should be treated as reputation and resource context, not as admissions odds");
+  }
+  if (selectedSections.additionalConsiderations && ctx.contextualNotes?.length) {
+    sentences.push(ctx.contextualNotes[0]);
+  }
+
+  const cleanSentences = sentences
+    .filter(Boolean)
+    .map((sentence) => stripReportPrefix(sentence).replace(/[.!?]+$/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((sentence) => `${sentence}.`);
+  const midpoint = Math.min(3, cleanSentences.length);
+  const paragraphOne = cleanSentences.slice(0, midpoint).join(" ");
+  const paragraphTwo = cleanSentences.slice(midpoint).join(" ");
+  return appendAISummaryDisclaimer([paragraphOne, paragraphTwo].filter(Boolean).join("\n\n"));
+}
+
+function getSummarySectionBodies(ctx, concise = false) {
+  const namedProgramSentence = buildNamedProgramFitSentence(ctx);
+  const rankings = ctx.rankingsContext?.include ? ctx.rankingsContext.rankings.map((ranking) => `${ranking.text} (${ranking.source}${ranking.year ? `, ${ranking.year}` : ""}) is reputation/resource context only, not an admissions-chance signal.`) : [];
+  const activitiesAdvice = ctx.selectedSchoolEnrichment?.specificRecommendationIdeas?.length
+    ? `Useful examples include ${formatList(ctx.selectedSchoolEnrichment.specificRecommendationIdeas.slice(0, concise ? 2 : 3))}.`
+    : "";
+  const majorFit = [
+    namedProgramSentence,
+    ctx.majorSchoolFit?.majorFitSummary,
+    ctx.selectedSchoolEnrichment?.majorSpecificAdvice,
+    concise ? "" : ctx.majorFitNotes?.find((note) => !note.includes(ctx.majorSchoolFit?.majorFitSummary || "")),
+  ].filter(Boolean).join(" ");
+  return {
+    studentProfile: [
+      `${[ctx.student.name, ctx.student.location, ctx.student.graduationYear && `Class of ${ctx.student.graduationYear}`].filter(Boolean).join(", ") || "Student profile details are limited."}`,
+      `Intended major: ${ctx.student.intendedMajor || "Not listed"}`,
+      [`GPA: ${ctx.student.gpa || "not listed"}`, ctx.student.sat && `SAT: ${ctx.student.sat}`, ctx.student.act && `ACT: ${ctx.student.act}`, ctx.student.classRank && `class rank: ${ctx.student.classRank}`].filter(Boolean).join("; "),
+      `Course rigor: ${ctx.student.courseRigor || "not fully entered"}`,
+    ].filter(Boolean),
+    schoolFit: `${ctx.school.name}: ${(ctx.school.personality || "School profile data is limited.").replace(/\.$/, "")}. ${namedProgramSentence || ""}`.trim(),
+    academicFit: `Academic fit should be read through this school's factor data. ${ctx.academicNotes?.join(" ") || "Add GPA, course rigor, rank, and test context for a stronger read."}`,
+    majorFit,
+    rankingsContext: rankings,
+    activitiesImpact: `${ctx.majorGuidance.activityFraming} ${activitiesAdvice} ${ctx.student.activitiesSummary || ""}`.trim(),
+    additionalConsiderations: ctx.contextualNotes || [],
+    suggestedNextSteps: ctx.suggestedNextSteps || [],
+  };
+}
+
+function buildSelectedReportContext(reportContext, selectedSections) {
+  const ctx = JSON.parse(JSON.stringify(reportContext || {}));
+  ctx.selectedSections = Object.entries(selectedSections || DEFAULT_SUMMARY_SECTIONS)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => SUMMARY_SECTION_LABELS[key]);
+  if (!selectedSections.rankingsContext) ctx.rankingsContext = { include: false, rankings: [] };
+  if (!selectedSections.additionalConsiderations) ctx.contextualNotes = [];
+  if (!selectedSections.suggestedNextSteps) ctx.suggestedNextSteps = [];
+  return ctx;
+}
+
+function cleanSelectedSummaryOutput(text, selectedSections) {
+  let output = String(text || "").replace(/\*\*/g, "").trim();
+  const allowedTitles = Object.entries(SUMMARY_SECTION_LABELS)
+    .filter(([key]) => selectedSections[key])
+    .map(([, title]) => title)
+    .concat("Disclaimer");
+  output = output.split(/\n(?=# )/g)
+    .filter((section) => {
+      const title = section.match(/^#\s+(.+)$/m)?.[1]?.trim();
+      return !title || allowedTitles.includes(title);
+    })
+    .join("\n\n");
+  return appendDisclaimerOnce(output);
+}
+
+function cleanAISummaryOutput(text) {
+  let output = String(text || "")
+    .replace(/\*\*/g, "")
+    .replace(/^#+\s+.*$/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "")
+    .replace(/Structured summary from selected sections\.?/gi, "")
+    .replace(/Student Profile|School Fit Summary|Academic Fit|Major Fit|Rankings Context|Activities & Impact|Additional Considerations|Suggested Next Steps/gi, "")
+    .trim();
+  return appendAISummaryDisclaimer(output);
+}
+
+function looksLikeStructuredSummary(text) {
+  const sectionHeaders = ["Student Profile", "School Fit Summary", "Academic Fit", "Major Fit", "Activities & Impact", "Suggested Next Steps"];
+  const value = String(text || "");
+  const count = sectionHeaders.filter((header) => new RegExp(`(^|\\n)#?\\s*${escapeRegExp(header)}\\b`, "i").test(value)).length;
+  return count >= 3 || /^\s*#?\s*Student Profile\b/i.test(value);
+}
+
+function isTooSimilarToGeneratedSummary(aiText, generatedText) {
+  const ai = String(aiText || "");
+  const generated = String(generatedText || "");
+  if (!ai || !generated) return false;
+  if (looksLikeStructuredSummary(ai)) return true;
+  if (/Structured summary from selected sections/i.test(ai)) return true;
+  const aiSentences = ai.replace(/Disclaimer:[\s\S]*$/i, "").split(/[.!?]+/).map((sentence) => normalizeText(sentence)).filter((sentence) => sentence.length > 20);
+  const generatedSentences = new Set(generated.split(/[.!?]+/).map((sentence) => normalizeText(sentence)).filter(Boolean));
+  const repeated = aiSentences.filter((sentence) => generatedSentences.has(sentence)).length;
+  if (repeated >= 2) return true;
+  return ai.length > generated.length * 0.85 && looksLikeStructuredSummary(generated);
+}
+
+function appendDisclaimerOnce(text) {
+  const body = String(text || "")
+    .replace(/# Disclaimer[\s\S]*$/i, "")
+    .replace(new RegExp(escapeRegExp(DISCLAIMER_TEXT), "g"), "")
+    .trim();
+  return `${body}\n\n# Disclaimer\n${DISCLAIMER_TEXT}`.trim();
+}
+
+function appendAISummaryDisclaimer(text) {
+  const body = String(text || "")
+    .replace(/# Disclaimer[\s\S]*$/i, "")
+    .replace(/Disclaimer:\s*This tool does not provide exact admissions probabilities[\s\S]*$/i, "")
+    .replace(new RegExp(escapeRegExp(DISCLAIMER_TEXT), "g"), "")
+    .trim();
+  return `${body}\n\nDisclaimer: ${DISCLAIMER_TEXT}`.trim();
+}
+
+function stripReportPrefix(value) {
+  return String(value || "")
+    .replace(/^[-\s]+/, "")
+    .replace(/^Major-relevant courses?:\s*/i, "")
+    .replace(/^Major-relevant courses?\s+include\s+/i, "")
+    .replace(/^Major-relevant coursework\s*/i, "")
+    .trim();
+}
+
+function simplifyAISummaryNextStep(step) {
+  const text = stripReportPrefix(step).replace(/\.$/, "");
+  if (/Rigor of secondary school record/i.test(text)) return "clarify course rigor with course names, grades, projects, papers, or exam context";
+  if (/Activity entries/i.test(text)) return "add measurable activity outcomes such as team size, systems improved, hours, projects, or results";
+  if (/Add or clarify major-related coursework/i.test(text)) return text.replace(/^Add or clarify/i, "add or clarify");
+  return text.charAt(0).toLowerCase() + text.slice(1);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function reportSectionText(title, body) {
   return `# ${title}\n${body}`;
+}
+
+function buildNamedProgramFitSentence(ctx) {
+  const enrichment = ctx.selectedSchoolEnrichment || ctx.schoolEnrichment || {};
+  const schoolNames = (enrichment.relevantUndergraduateSchools || []).map((item) => item.name).filter(Boolean);
+  const programNames = []
+    .concat(enrichment.relevantSignaturePrograms || [])
+    .concat(enrichment.relevantExperientialOpportunities || [])
+    .concat(enrichment.relevantStudentPathways || [])
+    .map((item) => item.name)
+    .filter(Boolean);
+  const names = dedupeStrings([...schoolNames, ...programNames]).slice(0, 5);
+  if (!names.length) return "";
+  const major = ctx.student?.intendedMajor || "This major";
+  return `${major} connects most directly with ${formatList(names)} in the app's school data.`;
 }
 
 function buildMajorRelevantCourseSummary(profileData, intendedMajor) {
@@ -1947,7 +2319,8 @@ function getImportanceSlices(scoringResults) {
   return Object.entries(groups).filter(([, value]) => value > 0).map(([label, value]) => ({
     label,
     value,
-    percent: Math.round((value / total) * 100),
+    percent: (value / total) * 100,
+    percentLabel: formatPercent((value / total) * 100),
     color: colors[label] || "#64748b",
   }));
 }
@@ -2029,7 +2402,6 @@ function generateMajorSpecificNextSteps(profileData, schoolProfile, courseSummar
   const category = getMajorCategory(profileData.intendedMajor);
   const guidance = MAJOR_GUIDANCE[category] || MAJOR_GUIDANCE.other;
   const steps = [];
-  if (courseSummary.missingSuggestedCourses?.length) steps.push(`Add or clarify ${formatList(courseSummary.missingSuggestedCourses.slice(0, 4))} if available.`);
   steps.push(...truncateArray(enrichment.specificRecommendationIdeas || [], 2));
   steps.push(...truncateArray(guidance.recommendationIdeas, 2));
   if (category === "businessSocialScience" && /robotics|engineering|technical|coding|operations/i.test(getActivityText(profileData))) {
@@ -2186,7 +2558,7 @@ function renderBriefRuleReport(scoringResults) {
         !courseSummary.listedRelevantCourses.length ? `Add major-related coursework or project evidence tied to ${major}.` : "",
         "Use essays to connect personal story, academic interests, and school fit without repeating the activity list.",
       ]).filter(Boolean)).slice(0, 5), true)}
-      ${reportSection("Disclaimer", "This tool does not provide exact admissions probabilities. This tool should not be read as saying a student will or will not be admitted. Admissions factor ratings, rankings, and school profile data come from the app's school data and should be verified against the current Common Data Set, admissions site, and ranking source.")}
+      ${reportSection("Disclaimer", DISCLAIMER_TEXT)}
     </article>
   `;
 }
@@ -2362,9 +2734,8 @@ function cleanGeneratedReport(text, scoringResults, schoolProfile) {
   }
   output = ensureReportSections(output);
   output = dedupeStrings(output.split("\n")).join("\n");
-  const disclaimer = "This tool does not provide exact admissions probabilities. This tool should not be read as saying a student will or will not be admitted. Admissions factor ratings, rankings, and school profile data come from the app's school data and should be verified against the current Common Data Set, admissions site, and ranking source.";
   output = output.replace(/# Disclaimer[\s\S]*$/i, "").trim();
-  return `${output}\n\n# Disclaimer\n${disclaimer}`;
+  return `${output}\n\n# Disclaimer\n${DISCLAIMER_TEXT}`;
 }
 
 function validateGeneratedReport(output, reportContext) {
@@ -2509,6 +2880,9 @@ function bindEvents() {
     state.activities = [];
     state.awards = [];
     state.aiReport = "";
+    state.generatedSummary = "";
+    state.aiSummaryStatus = "";
+    state.selectedSummarySections = { ...DEFAULT_SUMMARY_SECTIONS };
     state.reviewerSchool = "";
     state.savedAt = "";
     render();
@@ -2527,9 +2901,16 @@ function bindEvents() {
   });
 
   document.querySelectorAll("[data-profile]").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.profile[input.dataset.profile] = input.value;
+      state.aiReport = "";
+      state.generatedSummary = "";
+      save();
+    });
     input.addEventListener("change", () => {
       state.profile[input.dataset.profile] = input.value;
       state.aiReport = "";
+      state.generatedSummary = "";
       save();
       render();
     });
@@ -2544,6 +2925,7 @@ function bindEvents() {
     if (!current.some((course) => normalizeText(course) === normalizeText(value))) {
       state.profile[key] = [...current, value];
       state.aiReport = "";
+      state.generatedSummary = "";
       save();
     }
     render();
@@ -2560,6 +2942,7 @@ function bindEvents() {
     const course = button.dataset.course;
     state.profile[key] = getCourseArray(key).filter((item) => item !== course);
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   }));
@@ -2570,6 +2953,7 @@ function bindEvents() {
     state.profile.intendedMajor = value;
     state.profile.majorCategory = getMajorCategory(value);
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   });
@@ -2585,6 +2969,7 @@ function bindEvents() {
     state.profile.intendedMajor = value;
     state.profile.majorCategory = getMajorCategory(value);
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   });
@@ -2593,6 +2978,7 @@ function bindEvents() {
     state.profile.intendedMajor = "";
     state.profile.majorCategory = "";
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   });
@@ -2600,8 +2986,72 @@ function bindEvents() {
   document.querySelector("[data-reviewer-school]")?.addEventListener("change", (event) => {
     state.reviewerSchool = event.currentTarget.value;
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
+  });
+
+  document.querySelectorAll("[data-summary-section]").forEach((input) => {
+    input.addEventListener("change", () => {
+      state.selectedSummarySections[input.dataset.summarySection] = input.checked;
+      state.generatedSummary = "";
+      state.aiReport = "";
+      save();
+      render();
+    });
+  });
+
+  document.querySelector("[data-select-all-sections]")?.addEventListener("click", () => {
+    state.selectedSummarySections = Object.fromEntries(Object.keys(SUMMARY_SECTION_LABELS).map((key) => [key, true]));
+    state.generatedSummary = "";
+    state.aiReport = "";
+    save();
+    render();
+  });
+
+  document.querySelector("[data-clear-optional-sections]")?.addEventListener("click", () => {
+    state.selectedSummarySections = { ...DEFAULT_SUMMARY_SECTIONS };
+    state.generatedSummary = "";
+    state.aiReport = "";
+    save();
+    render();
+  });
+
+  document.querySelector("[data-generate-summary]")?.addEventListener("click", () => {
+    const school = getReviewerSchool();
+    const profileData = getProfileData();
+    const scoringResults = scoreApplicantForSchool(profileData, school);
+    const reportContext = buildCompactReportContext(profileData, getSchoolProfile(school.name), scoringResults);
+    state.generatedSummary = generateStructuredSummary(reportContext, state.selectedSummarySections);
+    save();
+    render();
+  });
+
+  document.querySelector("[data-generate-ai-summary]")?.addEventListener("click", async () => {
+    const school = getReviewerSchool();
+    const profileData = getProfileData();
+    const scoringResults = scoreApplicantForSchool(profileData, school);
+    const reportContext = buildCompactReportContext(profileData, getSchoolProfile(school.name), scoringResults);
+    state.aiReport = "";
+    state.aiSummaryStatus = "Generating AI summary...";
+    state.aiStatus = "Reviewing selected sections...";
+    state.aiProgress = webLLMService.engine ? 0.35 : 0.03;
+    render();
+    try {
+      state.aiReport = await safeGenerateAISummary(reportContext, state.selectedSummarySections);
+      state.aiSummaryStatus = "";
+      state.aiStatus = state.aiUsedFallback ? "Concise fallback AI summary generated." : "";
+      state.aiProgress = 1;
+      save();
+      render();
+    } catch (error) {
+      state.aiReport = generateConciseAISummaryFallback(reportContext, state.selectedSummarySections);
+      state.aiSummaryStatus = "";
+      state.aiStatus = `AI summary fallback used: ${error.message}`;
+      state.aiProgress = 0;
+      save();
+      render();
+    }
   });
 
   document.querySelector("[data-generate-report]")?.addEventListener("click", async () => {
@@ -2691,6 +3141,8 @@ function bindEvents() {
     if (state.activities.length >= 10) return;
     const form = new FormData(event.currentTarget);
     state.activities.push({ category: form.get("category"), title: form.get("title"), description: form.get("description") });
+    state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   });
@@ -2700,6 +3152,8 @@ function bindEvents() {
     if (state.awards.length >= 5) return;
     const form = new FormData(event.currentTarget);
     state.awards.push({ title: form.get("title"), level: form.get("level") });
+    state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   });
@@ -2715,18 +3169,23 @@ function bindEvents() {
     state.profile.alumniRelations = [...getAlumniRelationsFromProfile(state.profile), relation];
     state.profile.alumniRelation = "";
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   });
 
   document.querySelectorAll("[data-remove-activity]").forEach((button) => button.addEventListener("click", () => {
     state.activities.splice(Number(button.dataset.removeActivity), 1);
+    state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   }));
 
   document.querySelectorAll("[data-remove-award]").forEach((button) => button.addEventListener("click", () => {
     state.awards.splice(Number(button.dataset.removeAward), 1);
+    state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   }));
@@ -2734,6 +3193,7 @@ function bindEvents() {
   document.querySelectorAll("[data-remove-alumni]").forEach((button) => button.addEventListener("click", () => {
     state.profile.alumniRelations = getAlumniRelationsFromProfile(state.profile).filter((_, index) => index !== Number(button.dataset.removeAlumni));
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   }));
@@ -2742,6 +3202,7 @@ function bindEvents() {
     state.profile.alumniRelations = [];
     state.profile.alumniRelation = "";
     state.aiReport = "";
+    state.generatedSummary = "";
     save();
     render();
   });
@@ -2845,6 +3306,16 @@ function importanceClass(value) {
   if (value === "Important") return "important";
   if (value === "Considered") return "considered";
   return "not";
+}
+
+function formatNumber(value) {
+  const number = Number(value || 0);
+  return Number.isInteger(number) ? String(number) : number.toFixed(1).replace(/\.0$/, "");
+}
+
+function formatPercent(value) {
+  const number = Number(value || 0);
+  return `${number >= 10 ? Math.round(number) : number.toFixed(1).replace(/\.0$/, "")}%`;
 }
 
 function escapeHtml(value) {
