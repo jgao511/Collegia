@@ -8,7 +8,7 @@ Live Demo: [https://jgao511.github.io/Collegia/](https://jgao511.github.io/Colle
 
 # Overview
 
-College Profile AI is a browser-based application designed to help students better understand how their academic background, coursework, extracurricular involvement, and intended major align with different universities.
+Collegia is a browser-based application designed to help students better understand how their academic background, coursework, extracurricular involvement, and intended major align with different universities.
 
 The platform combines:
 
