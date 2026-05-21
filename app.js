@@ -275,6 +275,8 @@ const STORAGE_KEYS = {
   activities: "collegiaActivities",
   awards: "collegiaAwards",
   settings: "collegiaSettings",
+  collegePreferences: "collegiaCollegePreferences",
+  suggestedSchools: "collegiaSuggestedSchools",
   lastReport: "collegiaLastReport",
   lastReportVersion: "collegiaLastReportVersion",
   reviewerSchool: "collegiaReviewerSchool",
@@ -292,6 +294,50 @@ const OLD_STORAGE_KEYS = {
   reviewerSchool: "college-reviewer-school",
   photos: "college-photos",
   photoVersion: "college-photo-version",
+};
+
+const DEFAULT_COLLEGE_PREFERENCES = {
+  preferredRegions: [],
+  preferredStates: [],
+  urbanSuburbanRural: [],
+  publicPrivatePreference: "Any",
+  schoolSizePreference: "Any",
+  campusVibe: [],
+  costSensitivity: "Medium",
+  financialAidImportance: "Medium",
+  distanceFromHomePreference: "Any",
+  climatePreference: [],
+  sportsImportance: "Low",
+  campusSafetyImportance: "Medium",
+  qualityOfLifeImportance: "Medium",
+  rankingsImportance: "Low",
+  majorStrengthImportance: "High",
+  researchImportance: "Medium",
+  internshipCoopImportance: "Medium",
+  honorsProgramsImportance: "Medium",
+  entrepreneurshipImportance: "Medium",
+  studyAbroadImportance: "Low",
+  diversityImportance: "Medium",
+  notes: "",
+};
+
+const PREFERENCE_OPTIONS = {
+  preferredRegions: ["Northeast", "Mid-Atlantic", "South", "Midwest", "Southwest", "West Coast", "Pacific Northwest", "Any"],
+  urbanSuburbanRural: ["Urban", "Suburban", "College town", "Rural", "Coastal", "Any"],
+  campusVibe: ["Academic/intense", "Collaborative", "Pre-professional", "Creative", "Research-heavy", "Entrepreneurial", "School spirit/sports", "Service/community-focused", "Global/policy-focused", "Tech/startup-focused", "Arts/media-focused", "Any"],
+  climatePreference: ["Warm", "Cold/snowy", "Mild", "Coastal", "No preference"],
+};
+
+const IMPORTANCE_LEVELS = ["Low", "Medium", "High"];
+
+const suggestedSchoolWeights = {
+  majorFit: 0.25,
+  academicFit: 0.2,
+  preferenceFit: 0.2,
+  schoolEnvironmentFit: 0.1,
+  costResidencyFit: 0.1,
+  rankingsContextFit: 0.075,
+  opportunitiesFit: 0.075,
 };
 
 const CAMPUS_IMAGES = [
@@ -474,6 +520,368 @@ const SCHOOL_DETAIL_DATA = {
   asu: { act: "22-29", cycles: "Rolling/priority admission pathways.", campus: "Large urban/suburban multi-campus university", sports: "NCAA Division I; Big 12 Conference" },
 };
 
+const SCHOOL_METRIC_CONTEXT = {
+  ucla: { setting: "Urban", campusTags: ["large research university", "urban", "arts/media ecosystem", "pre-professional", "research-heavy"], locationAdvantages: ["Los Angeles creative industries", "Southern California internship access", "public research ecosystem"], climateTags: ["Warm", "Mild", "Coastal"], qualityOfLifeTags: ["Urban access", "Arts/media ecosystem"] },
+  berkeley: { setting: "Urban", campusTags: ["large research university", "urban", "tech/startup ecosystem", "academic/intense", "public service", "research-heavy"], locationAdvantages: ["Bay Area innovation ecosystem", "public mission", "technology and policy networks"], climateTags: ["Mild", "Coastal"], qualityOfLifeTags: ["Urban access", "Tech/startup ecosystem"] },
+  ucsd: { setting: "Coastal/suburban", campusTags: ["large research university", "coastal", "research-heavy", "STEM-focused", "collaborative"], locationAdvantages: ["San Diego biotech and research ecosystem", "coastal science context"], climateTags: ["Warm", "Mild", "Coastal"], qualityOfLifeTags: ["Water/coastal setting", "Research-heavy"] },
+  uci: { setting: "Suburban", campusTags: ["large research university", "suburban", "pre-professional", "research-heavy", "Southern California"], locationAdvantages: ["Orange County industry access", "Southern California health and technology context"], climateTags: ["Warm", "Mild", "Coastal"], qualityOfLifeTags: ["Suburban setting", "Urban access"] },
+  ucsb: { setting: "Coastal college town", campusTags: ["large research university", "coastal", "college town", "collaborative", "research-heavy"], locationAdvantages: ["coastal and environmental research context", "California public university network"], climateTags: ["Mild", "Coastal"], qualityOfLifeTags: ["Water/coastal setting", "College town"] },
+  ucdavis: { setting: "College town", campusTags: ["large research university", "college town", "collaborative", "sustainability", "agriculture/life sciences"], locationAdvantages: ["Sacramento region access", "agriculture and sustainability ecosystem"], climateTags: ["Warm", "Mild"], qualityOfLifeTags: ["College town", "Bike-centered campus"] },
+  usc: { setting: "Urban", campusTags: ["urban", "pre-professional", "arts/media ecosystem", "entrepreneurial", "strong alumni network"], locationAdvantages: ["Los Angeles media and business ecosystem", "Southern California internship access"], climateTags: ["Warm", "Mild", "Coastal"], qualityOfLifeTags: ["Urban access", "Arts/media ecosystem"] },
+  stanford: { setting: "Suburban", campusTags: ["suburban", "tech/startup ecosystem", "entrepreneurial", "research-heavy", "academic/intense"], locationAdvantages: ["Silicon Valley ecosystem", "innovation and entrepreneurship context"], climateTags: ["Mild"], qualityOfLifeTags: ["Tech/startup ecosystem", "Residential campus"] },
+  harvard: { setting: "Urban/suburban", campusTags: ["urban", "research-heavy", "academic/intense", "global/policy-focused", "residential"], locationAdvantages: ["Boston/Cambridge academic ecosystem", "global research network"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Residential houses"] },
+  mit: { setting: "Urban", campusTags: ["urban", "tech/startup ecosystem", "academic/intense", "maker culture", "research-heavy"], locationAdvantages: ["Cambridge/Boston innovation ecosystem", "technical research and startup access"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Tech/startup ecosystem"] },
+  yale: { setting: "Urban", campusTags: ["urban", "residential", "arts/media ecosystem", "global/policy-focused", "academic/intense"], locationAdvantages: ["Northeast arts, policy, and research access", "residential college system"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Residential colleges", "Urban access"] },
+  princeton: { setting: "Suburban", campusTags: ["suburban", "undergraduate-focused", "academic/intense", "research-heavy", "public service"], locationAdvantages: ["senior thesis culture", "New Jersey/Northeast access"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Residential campus", "Undergraduate focus"] },
+  columbia: { setting: "Urban", campusTags: ["urban", "global/policy-focused", "research-heavy", "pre-professional", "arts/media ecosystem"], locationAdvantages: ["New York City access", "finance, media, policy, and research networks"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Core Curriculum"] },
+  nyu: { setting: "Urban", campusTags: ["urban", "global", "arts/media ecosystem", "pre-professional", "entrepreneurial"], locationAdvantages: ["New York City finance, media, arts, and startup access", "global campus network"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Global network"] },
+  cornell: { setting: "College town", campusTags: ["large research university", "college town", "research-heavy", "pre-professional", "collaborative"], locationAdvantages: ["Ithaca college-town environment", "broad college system"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["College town", "Large research campus"] },
+  upenn: { setting: "Urban", campusTags: ["urban", "pre-professional", "entrepreneurial", "research-heavy", "interdisciplinary"], locationAdvantages: ["Philadelphia urban access", "business, healthcare, and engineering ecosystem"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Pre-professional culture"] },
+  brown: { setting: "Urban", campusTags: ["urban", "collaborative", "creative", "open curriculum", "research-heavy"], locationAdvantages: ["Providence arts and research access", "self-directed curriculum"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Open Curriculum"] },
+  dartmouth: { setting: "Rural/college town", campusTags: ["small undergraduate focus", "rural", "college town", "collaborative", "outdoors"], locationAdvantages: ["close-knit campus", "outdoor and liberal arts environment"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["College town", "Outdoor culture"] },
+  duke: { setting: "Suburban", campusTags: ["suburban", "research-heavy", "strong school spirit", "pre-professional", "collaborative"], locationAdvantages: ["Research Triangle access", "health, policy, and entrepreneurship context"], climateTags: ["Warm", "Mild"], qualityOfLifeTags: ["School spirit", "Research campus"] },
+  unc: { setting: "College town", campusTags: ["large public research university", "college town", "public service", "strong school spirit", "collaborative"], locationAdvantages: ["Research Triangle access", "public health, journalism, and business context"], climateTags: ["Warm", "Mild"], qualityOfLifeTags: ["College town", "School spirit"] },
+  uva: { setting: "Suburban/college town", campusTags: ["large public research university", "college town", "public service", "pre-professional", "strong traditions"], locationAdvantages: ["Charlottesville college-town setting", "commerce, policy, and leadership context"], climateTags: ["Mild"], qualityOfLifeTags: ["College town", "Traditions"] },
+  michigan: { setting: "College town", campusTags: ["large public research university", "college town", "strong school spirit", "research-heavy", "pre-professional"], locationAdvantages: ["Ann Arbor college-town ecosystem", "large research university resources"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["College town", "Strong school spirit"] },
+  wisconsin: { setting: "Urban/college town", campusTags: ["large public research university", "college town", "strong school spirit", "research-heavy", "lakeside"], locationAdvantages: ["Madison state capital access", "lakeside campus and public research context"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["College town", "Water/coastal setting"] },
+  uiuc: { setting: "College town", campusTags: ["large public research university", "college town", "STEM-focused", "research-heavy", "strong school spirit"], locationAdvantages: ["major engineering and computing ecosystem", "Big Ten research campus"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["College town", "Large campus"] },
+  purdue: { setting: "College town", campusTags: ["large public research university", "college town", "STEM-focused", "hands-on", "strong school spirit"], locationAdvantages: ["engineering, aviation, and technology culture", "practical innovation ecosystem"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["College town", "Engineering culture"] },
+  osu: { setting: "Urban", campusTags: ["large public research university", "urban", "strong school spirit", "pre-professional", "research-heavy"], locationAdvantages: ["Columbus urban and industry access", "large-campus opportunities"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "School spirit"] },
+  pennstate: { setting: "College town", campusTags: ["large public research university", "college town", "strong school spirit", "large alumni network", "pre-professional"], locationAdvantages: ["large alumni network", "broad public research resources"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["College town", "School spirit"] },
+  uf: { setting: "College town", campusTags: ["large public research university", "college town", "strong school spirit", "honors", "research-heavy"], locationAdvantages: ["Florida public flagship context", "health, agriculture, and business ecosystem"], climateTags: ["Warm"], qualityOfLifeTags: ["College town", "School spirit"] },
+  fsu: { setting: "Urban/college town", campusTags: ["large public research university", "urban", "college town", "arts/media ecosystem", "strong school spirit"], locationAdvantages: ["Tallahassee state capital context", "arts, criminology, and policy access"], climateTags: ["Warm"], qualityOfLifeTags: ["College town", "School spirit"] },
+  gatech: { setting: "Urban", campusTags: ["urban", "STEM-focused", "tech/startup ecosystem", "research-heavy", "entrepreneurial"], locationAdvantages: ["Atlanta tech and startup ecosystem", "engineering and computing industry access"], climateTags: ["Warm", "Mild"], qualityOfLifeTags: ["Urban access", "Tech/startup ecosystem"] },
+  uga: { setting: "College town", campusTags: ["large public research university", "college town", "strong school spirit", "public service", "pre-professional"], locationAdvantages: ["Athens college-town environment", "state flagship opportunities"], climateTags: ["Warm", "Mild"], qualityOfLifeTags: ["College town", "School spirit"] },
+  ut: { setting: "Urban", campusTags: ["large public research university", "urban", "tech/startup ecosystem", "strong school spirit", "pre-professional"], locationAdvantages: ["Austin tech, policy, media, and startup ecosystem", "Texas economy access"], climateTags: ["Warm"], qualityOfLifeTags: ["Urban access", "Tech/startup ecosystem"] },
+  tamu: { setting: "College town", campusTags: ["large public research university", "college town", "strong school spirit", "engineering culture", "service/leadership"], locationAdvantages: ["Texas engineering, agriculture, and energy context", "large alumni network"], climateTags: ["Warm"], qualityOfLifeTags: ["College town", "School spirit"] },
+  uw: { setting: "Urban", campusTags: ["large public research university", "urban", "tech/startup ecosystem", "research-heavy", "coastal"], locationAdvantages: ["Seattle tech ecosystem", "public health, environment, and computing access"], climateTags: ["Mild", "Coastal"], qualityOfLifeTags: ["Urban access", "Water/coastal setting"] },
+  northeastern: { setting: "Urban", campusTags: ["urban", "co-op/experiential learning", "pre-professional", "global", "career-focused"], locationAdvantages: ["Boston internship and co-op ecosystem", "global campus network"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Co-op/experiential learning"] },
+  bu: { setting: "Urban", campusTags: ["urban", "pre-professional", "research-heavy", "global", "health/media ecosystem"], locationAdvantages: ["Boston health, communications, business, and research ecosystem"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Global city"] },
+  bc: { setting: "Suburban/near urban", campusTags: ["suburban", "service/community-focused", "pre-professional", "residential", "Jesuit"], locationAdvantages: ["Boston-area access", "service, ethics, and management context"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Suburban setting", "Boston access"] },
+  tufts: { setting: "Suburban/near urban", campusTags: ["suburban", "collaborative", "global/policy-focused", "civic engagement", "interdisciplinary"], locationAdvantages: ["Boston-area access", "global/civic and interdisciplinary ecosystem"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Suburban setting", "Boston access"] },
+  rice: { setting: "Urban", campusTags: ["urban", "collaborative", "residential colleges", "research-heavy", "undergraduate-focused"], locationAdvantages: ["Houston medical and energy ecosystem", "close-knit residential college context"], climateTags: ["Warm"], qualityOfLifeTags: ["Residential colleges", "Urban access"] },
+  vanderbilt: { setting: "Urban", campusTags: ["urban", "collaborative", "strong school spirit", "research-heavy", "pre-professional"], locationAdvantages: ["Nashville health, music, business, and education ecosystem"], climateTags: ["Warm", "Mild"], qualityOfLifeTags: ["Urban access", "School spirit"] },
+  washu: { setting: "Suburban/urban", campusTags: ["suburban", "collaborative", "research-heavy", "pre-professional", "residential"], locationAdvantages: ["St. Louis health, biomedical, and business context"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Residential campus", "Urban access"] },
+  northwestern: { setting: "Suburban/near urban", campusTags: ["suburban", "arts/media ecosystem", "interdisciplinary", "research-heavy", "pre-professional"], locationAdvantages: ["Chicago media, business, policy, and arts access", "lakefront campus"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Water/coastal setting", "Chicago access"] },
+  uchicago: { setting: "Urban", campusTags: ["urban", "academic/intense", "research-heavy", "intellectual", "core curriculum"], locationAdvantages: ["Chicago policy, economics, research, and cultural access"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Core Curriculum"] },
+  notredame: { setting: "Suburban/college town", campusTags: ["suburban", "service/community-focused", "strong school spirit", "residential", "mission-driven"], locationAdvantages: ["Notre Dame alumni network", "service, ethics, and business context"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Residential campus", "School spirit"] },
+  georgetown: { setting: "Urban", campusTags: ["urban", "global/policy-focused", "public service", "pre-professional", "Jesuit"], locationAdvantages: ["Washington, DC policy, diplomacy, government, and internship access"], climateTags: ["Mild"], qualityOfLifeTags: ["Urban access", "DC policy ecosystem"] },
+  jhu: { setting: "Urban", campusTags: ["urban", "research-heavy", "health/medical ecosystem", "academic/intense", "pre-professional"], locationAdvantages: ["Baltimore medical and public health ecosystem", "early research access"], climateTags: ["Mild"], qualityOfLifeTags: ["Urban access", "Research-heavy"] },
+  cmu: { setting: "Urban", campusTags: ["urban", "STEM-focused", "arts/media ecosystem", "tech/startup ecosystem", "project-based"], locationAdvantages: ["Pittsburgh tech, robotics, arts, and product ecosystem"], climateTags: ["Cold/snowy"], qualityOfLifeTags: ["Urban access", "Project-based culture"] },
+  emory: { setting: "Suburban/urban", campusTags: ["suburban", "health/medical ecosystem", "research-heavy", "pre-professional", "service/community-focused"], locationAdvantages: ["Atlanta health, nonprofit, business, and public health context"], climateTags: ["Warm", "Mild"], qualityOfLifeTags: ["Atlanta access", "Health ecosystem"] },
+  tulane: { setting: "Urban", campusTags: ["urban", "service/community-focused", "public health", "arts/culture ecosystem", "pre-professional"], locationAdvantages: ["New Orleans public health, culture, architecture, and service context"], climateTags: ["Warm"], qualityOfLifeTags: ["Urban access", "Arts/culture ecosystem"] },
+  asu: { setting: "Urban/suburban", campusTags: ["large public research university", "urban", "innovation", "entrepreneurial", "honors", "career-focused"], locationAdvantages: ["Phoenix/Tempe growth, sustainability, entrepreneurship, and design ecosystem"], climateTags: ["Warm"], qualityOfLifeTags: ["Urban access", "Innovation ecosystem"] },
+};
+
+// Rankings change yearly. U.S. News rankings should be rechecked annually and
+// used only as reputation/context signals, never as admissions predictions.
+const US_NEWS_2026_NATIONAL_UNIVERSITIES = {
+  "Princeton University": { rank: 1, displayText: "#1 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "Massachusetts Institute of Technology": { rank: 2, displayText: "#2 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "Harvard University": { rank: 3, displayText: "#3 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "Stanford University": { rank: 4, displayText: "#4 National Universities", verified: true, verificationNote: "Tied at #4. Verified from published 2026 U.S. News top-50 transcription." },
+  "Yale University": { rank: 4, displayText: "#4 National Universities", verified: true, verificationNote: "Tied at #4. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Chicago": { rank: 6, displayText: "#6 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "Duke University": { rank: 7, displayText: "#7 National Universities", verified: true, verificationNote: "Tied at #7. Verified from published 2026 U.S. News top-50 transcription." },
+  "Johns Hopkins University": { rank: 7, displayText: "#7 National Universities", verified: true, verificationNote: "Tied at #7. Verified from published 2026 U.S. News top-50 transcription." },
+  "Northwestern University": { rank: 7, displayText: "#7 National Universities", verified: true, verificationNote: "Tied at #7. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Pennsylvania": { rank: 7, displayText: "#7 National Universities", verified: true, verificationNote: "Tied at #7. Verified from published 2026 U.S. News top-50 transcription." },
+  "Cornell University": { rank: 12, displayText: "#12 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "Brown University": { rank: 13, displayText: "#13 National Universities", verified: true, verificationNote: "Tied at #13. Verified from published 2026 U.S. News top-50 transcription." },
+  "Dartmouth College": { rank: 13, displayText: "#13 National Universities", verified: true, verificationNote: "Tied at #13. Verified from published 2026 U.S. News top-50 transcription." },
+  "Columbia University": { rank: 15, displayText: "#15 National Universities", verified: true, verificationNote: "Tied at #15. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of California, Berkeley": { rank: 15, displayText: "#15 National Universities", verified: true, verificationNote: "Tied at #15. Verified from published 2026 U.S. News top-50 transcription." },
+  "Rice University": { rank: 17, displayText: "#17 National Universities", verified: true, verificationNote: "Tied at #17. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of California, Los Angeles": { rank: 17, displayText: "#17 National Universities", verified: true, verificationNote: "Tied at #17. Verified from published 2026 U.S. News top-50 transcription." },
+  "Vanderbilt University": { rank: 17, displayText: "#17 National Universities", verified: true, verificationNote: "Tied at #17. Verified from published 2026 U.S. News top-50 transcription." },
+  "Carnegie Mellon University": { rank: 20, displayText: "#20 National Universities", verified: true, verificationNote: "Tied at #20. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Michigan": { rank: 20, displayText: "#20 National Universities", verified: true, verificationNote: "Tied at #20. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Notre Dame": { rank: 20, displayText: "#20 National Universities", verified: true, verificationNote: "Tied at #20. Verified from published 2026 U.S. News top-50 transcription." },
+  "Washington University in St. Louis": { rank: 20, displayText: "#20 National Universities", verified: true, verificationNote: "Tied at #20. Verified from published 2026 U.S. News top-50 transcription." },
+  "Emory University": { rank: 24, displayText: "#24 National Universities", verified: true, verificationNote: "Tied at #24. Verified from published 2026 U.S. News top-50 transcription." },
+  "Georgetown University": { rank: 24, displayText: "#24 National Universities", verified: true, verificationNote: "Tied at #24. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of North Carolina at Chapel Hill": { rank: 26, displayText: "#26 National Universities", verified: true, verificationNote: "Tied at #26. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Virginia": { rank: 26, displayText: "#26 National Universities", verified: true, verificationNote: "Tied at #26. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Southern California": { rank: 28, displayText: "#28 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "University of California, San Diego": { rank: 29, displayText: "#29 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Florida": { rank: 30, displayText: "#30 National Universities", verified: true, verificationNote: "Tied at #30. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Texas at Austin": { rank: 30, displayText: "#30 National Universities", verified: true, verificationNote: "Tied at #30. Verified from published 2026 U.S. News top-50 transcription and Texas reporting." },
+  "Georgia Institute of Technology": { rank: 32, displayText: "#32 National Universities", verified: true, verificationNote: "Tied at #32. Verified from published 2026 U.S. News top-50 transcription." },
+  "New York University": { rank: 32, displayText: "#32 National Universities", verified: true, verificationNote: "Tied at #32. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of California, Davis": { rank: 32, displayText: "#32 National Universities", verified: true, verificationNote: "Tied at #32. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of California, Irvine": { rank: 32, displayText: "#32 National Universities", verified: true, verificationNote: "Tied at #32. Verified from published 2026 U.S. News top-50 transcription." },
+  "Boston College": { rank: 36, displayText: "#36 National Universities", verified: true, verificationNote: "Tied at #36. Verified from published 2026 U.S. News top-50 transcription and BC news." },
+  "Tufts University": { rank: 36, displayText: "#36 National Universities", verified: true, verificationNote: "Tied at #36. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Illinois Urbana-Champaign": { rank: 36, displayText: "#36 National Universities", verified: true, verificationNote: "Tied at #36. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Wisconsin-Madison": { rank: 36, displayText: "#36 National Universities", verified: true, verificationNote: "Tied at #36. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of California, Santa Barbara": { rank: 40, displayText: "#40 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "The Ohio State University": { rank: 41, displayText: "#41 National Universities", verified: true, verificationNote: "Verified from published 2026 U.S. News top-50 transcription." },
+  "Boston University": { rank: 42, displayText: "#42 National Universities", verified: true, verificationNote: "Tied at #42. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Washington": { rank: 42, displayText: "#42 National Universities", verified: true, verificationNote: "Tied at #42. Verified from published 2026 U.S. News top-50 transcription." },
+  "Northeastern University": { rank: 46, displayText: "#46 National Universities", verified: true, verificationNote: "Tied at #46. Verified from published 2026 U.S. News top-50 transcription." },
+  "Purdue University": { rank: 46, displayText: "#46 National Universities", verified: true, verificationNote: "Tied at #46. Verified from published 2026 U.S. News top-50 transcription." },
+  "University of Georgia": { rank: 46, displayText: "#46 National Universities", verified: true, verificationNote: "Tied at #46. Verified from published 2026 U.S. News top-50 transcription." },
+  "Penn State University": { rank: null, displayText: "", verified: false, verificationNote: "Needs manual verification for U.S. News 2026 National Universities rank. Leave blank until verified." },
+  "Florida State University": { rank: 51, displayText: "#51 National Universities", verified: false, verificationNote: "Commonly reported as tied at #51 for 2026, but mark unverified unless verified directly against U.S. News or official FSU materials. FSU official materials verify #21 Top Public Schools." },
+  "Texas A&M University": { rank: 51, displayText: "#51 National Universities", verified: true, verificationNote: "Verified from Texas reporting on U.S. News 2026 rankings." },
+  "Tulane University": { rank: 69, displayText: "#69 National Universities", verified: true, verificationNote: "Verified from Tulane Hullabaloo report on U.S. News 2026 National Universities." },
+  "Arizona State University": { rank: 117, displayText: "#117 National Universities", verified: true, verificationNote: "Verified from Axios Phoenix report on U.S. News 2026 rankings. Also #1 Most Innovative Schools." },
+};
+
+const ENGINEERING_RANKING_MAJORS = ["Engineering", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Aerospace Engineering", "Civil Engineering", "Biomedical Engineering", "Chemical Engineering", "Computer Science", "Data Science"];
+const CS_RANKING_MAJORS = ["Computer Science", "Computer Engineering", "Data Science", "Artificial Intelligence", "Software Engineering"];
+const ECE_RANKING_MAJORS = ["Electrical Engineering", "Computer Engineering", "Electrical and Computer Engineering"];
+const BUSINESS_RANKING_MAJORS = ["Business", "Economics", "Finance", "Accounting", "Marketing", "Entrepreneurship", "Management"];
+const HEALTH_RANKING_MAJORS = ["Pre-Med", "Biology", "Public Health", "Biomedical Sciences", "Neuroscience", "Health Sciences"];
+const ARTS_MEDIA_RANKING_MAJORS = ["Film", "Media Studies", "Communications", "Journalism", "Design", "Theater", "Music", "Fine Arts", "Arts"];
+
+function usNewsEngRank(rank, displayText = `#${rank} Best Undergraduate Engineering Programs`, relevantMajors = ENGINEERING_RANKING_MAJORS, note = "Verified from published U.S. News 2025 undergraduate engineering ranking transcription.", sourceYear = "2025") {
+  return { source: "U.S. News & World Report", sourceYear, category: "Best Undergraduate Engineering Programs", rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function usNewsSpecialRank(category, rank, displayText, relevantMajors, note) {
+  return { source: "U.S. News & World Report", sourceYear: "2026", category, rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function theCsRank(rank, displayText = `#${rank} U.S. Computer Science`, relevantMajors = CS_RANKING_MAJORS, note = "Verified from Times Higher Education 2026 U.S. Computer Science ranking.") {
+  return { source: "Times Higher Education", sourceYear: "2026", category: "U.S. Computer Science", rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function theEngRank(rank, displayText, relevantMajors, note) {
+  return { source: "Times Higher Education", sourceYear: "2026", category: "U.S. Engineering", rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function theBusinessRank(rank, displayText = `#${rank} U.S. Business Schools`, relevantMajors = BUSINESS_RANKING_MAJORS, note = "Verified from Times Higher Education 2026 U.S. Business Schools ranking.") {
+  return { source: "Times Higher Education", sourceYear: "2026", category: "U.S. Business Schools", rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function pqBusinessRank(rank, displayText = `#${rank} Best Undergraduate Business Schools`, relevantMajors = BUSINESS_RANKING_MAJORS, note = "Verified from Poets&Quants 2026 Best Undergraduate Business Schools ranking.") {
+  return { source: "Poets&Quants", sourceYear: "2026", category: "Best Undergraduate Business Schools", rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function usNewsBusinessRank(rank, displayText = `#${rank} Undergraduate Business`, relevantMajors = BUSINESS_RANKING_MAJORS, note = "Verified from Poets&Quants report on U.S. News 2026 undergraduate business rankings.") {
+  return { source: "U.S. News & World Report", sourceYear: "2026", category: "Undergraduate Business", rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function theMedicineRank(rank, displayText = `#${rank} U.S. Medicine`, relevantMajors = HEALTH_RANKING_MAJORS, note = "Verified from Times Higher Education 2026 U.S. Medicine ranking.") {
+  return { source: "Times Higher Education", sourceYear: "2026", category: "U.S. Medicine", rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function healthRank(source, category, rank, displayText, relevantMajors, note, sourceYear = "2026", verified = true) {
+  return { source, sourceYear, category, rank, displayText, relevantMajors, verified, verificationNote: note };
+}
+
+function artsMediaRank(category, rank, displayText, relevantMajors = ARTS_MEDIA_RANKING_MAJORS, note) {
+  return { source: "Niche", sourceYear: "2026", category, rank, displayText, relevantMajors, verified: true, verificationNote: note };
+}
+
+function campusLifeRank(source, category, rank, displayText, note) {
+  return { source, sourceYear: "2026", category, rank, displayText, verified: true, verificationNote: note };
+}
+
+// Engineering/CS rankings change yearly and should be rechecked. Use these
+// only as program-strength context, never as admissions predictions.
+const ENGINEERING_CS_RANKINGS = {
+  "Massachusetts Institute of Technology": { majorSpecific: [usNewsEngRank(1, "#1 Best Undergraduate Engineering Programs", ["Engineering", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Aerospace Engineering", "Computer Science", "Artificial Intelligence", "Robotics"]), theCsRank(1)] },
+  "Stanford University": { majorSpecific: [usNewsEngRank(2, "#2 Best Undergraduate Engineering Programs", ["Engineering", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Computer Science", "Artificial Intelligence", "Robotics"]), theCsRank(3)] },
+  "University of California, Berkeley": { majorSpecific: [usNewsEngRank(3, "#3 Best Undergraduate Engineering Programs", ["Engineering", "Electrical Engineering", "Computer Engineering", "Computer Science", "Data Science", "Artificial Intelligence"]), theCsRank(7)] },
+  "Georgia Institute of Technology": { majorSpecific: [
+    usNewsEngRank(3, "#3 Undergraduate Engineering", ["Engineering", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Aerospace Engineering", "Biomedical Engineering", "Chemical Engineering", "Civil Engineering", "Industrial Engineering"], "Verified from official Georgia Tech College of Engineering facts/rankings page.", "2026"),
+    usNewsSpecialRank("Electrical Engineering", 3, "#3 Electrical Engineering", ["Electrical Engineering", "Electrical and Computer Engineering"], "Verified from official Georgia Tech College of Engineering facts/rankings page."),
+    usNewsSpecialRank("Computer Engineering", 6, "#6 Computer Engineering", ["Computer Engineering", "Electrical and Computer Engineering"], "Verified from official Georgia Tech College of Engineering facts/rankings page."),
+    theCsRank(14),
+  ] },
+  "University of Illinois Urbana-Champaign": { majorSpecific: [
+    usNewsEngRank(5, "#5 Undergraduate Engineering", ["Engineering", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Civil Engineering", "Computer Science", "Data Science"], "Verified from official UIUC Grainger College of Engineering facts/rankings page.", "2026"),
+    usNewsSpecialRank("Computer Science", 7, "#7 Computer Science", ["Computer Science", "Software Engineering", "Artificial Intelligence", "Data Science"], "Verified from official UIUC Grainger College of Engineering facts/rankings page."),
+    usNewsSpecialRank("Computer Engineering", 5, "#5 Computer Engineering", ECE_RANKING_MAJORS, "Verified from official UIUC Grainger College of Engineering facts/rankings page."),
+    usNewsSpecialRank("Electrical Engineering", 5, "#5 Electrical Engineering", ECE_RANKING_MAJORS, "Verified from official UIUC Grainger College of Engineering facts/rankings page."),
+    theCsRank(10),
+  ] },
+  "University of Michigan": { majorSpecific: [usNewsEngRank(5, "#5 Best Undergraduate Engineering Programs", ["Engineering", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Computer Science", "Data Science", "Robotics"]), theCsRank(17)] },
+  "Carnegie Mellon University": { majorSpecific: [usNewsEngRank(8, "#8 Best Undergraduate Engineering Programs", ["Engineering", "Electrical Engineering", "Computer Engineering", "Computer Science", "Artificial Intelligence", "Robotics", "Software Engineering"]), theCsRank(4)] },
+  "Purdue University": { majorSpecific: [usNewsEngRank(8, "#8 Best Undergraduate Engineering Programs", ["Engineering", "Aerospace Engineering", "Mechanical Engineering", "Electrical Engineering", "Computer Engineering", "Computer Science"]), theCsRank(22)] },
+  "Cornell University": { majorSpecific: [usNewsEngRank(10, "#10 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering"]), theCsRank(8)] },
+  "University of Texas at Austin": { majorSpecific: [usNewsEngRank(10, "#10 Best Undergraduate Engineering Programs", ["Engineering", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Computer Science", "Data Science"]), theCsRank(16)] },
+  "Princeton University": { majorSpecific: [usNewsEngRank(12, "#12 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering"]), theCsRank(2)] },
+  "Johns Hopkins University": { majorSpecific: [usNewsEngRank(13, "#13 Best Undergraduate Engineering Programs", ["Engineering", "Biomedical Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering"]), theCsRank(18)] },
+  "University of Wisconsin-Madison": { majorSpecific: [usNewsEngRank(13, "#13 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Data Science"]), theCsRank(24)] },
+  "Northwestern University": { majorSpecific: [usNewsEngRank(16, "#16 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering"]), theCsRank(32)] },
+  "Texas A&M University": { majorSpecific: [usNewsEngRank(16, "#16 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Aerospace Engineering"]), theCsRank(34, "#34 U.S. Computer Science", ["Computer Science", "Computer Engineering", "Software Engineering", "Data Science"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of California, Los Angeles": { majorSpecific: [usNewsEngRank(16, "#16 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering", "Data Science"]), theCsRank(9)] },
+  "Columbia University": { majorSpecific: [usNewsEngRank(20, "#20 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Data Science"]), theCsRank(12)] },
+  "Duke University": { majorSpecific: [usNewsEngRank(20, "#20 Best Undergraduate Engineering Programs", ["Engineering", "Biomedical Engineering", "Electrical Engineering", "Computer Engineering", "Computer Science"]), theCsRank(27)] },
+  "The Ohio State University": { majorSpecific: [usNewsEngRank(20, "#20 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering"]), theCsRank(45, "#45 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Penn State University": { majorSpecific: [usNewsEngRank(20, "#20 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering"]), theCsRank(40, "#40 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Rice University": { majorSpecific: [usNewsEngRank(20, "#20 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Mechanical Engineering"]), theCsRank(34, "#34 U.S. Computer Science", CS_RANKING_MAJORS, "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of California, San Diego": { majorSpecific: [usNewsEngRank(20, "#20 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Bioengineering", "Data Science"]), theCsRank(19)] },
+  "University of Washington": { majorSpecific: [usNewsEngRank(20, "#20 Best Undergraduate Engineering Programs", ["Engineering", "Computer Science", "Electrical Engineering", "Computer Engineering", "Informatics", "Data Science"]), theCsRank(11, "#11 U.S. Computer Science", ["Computer Science", "Data Science", "Artificial Intelligence", "Software Engineering", "Informatics"])] },
+  "Harvard University": { majorSpecific: [theCsRank(5, "#5 U.S. Computer Science", ["Computer Science", "Data Science", "Applied Mathematics", "Artificial Intelligence"]), theEngRank(1, "#1 U.S. Engineering", ["Engineering", "Applied Sciences", "Computer Science", "Data Science"], "Verified from Times Higher Education 2026 U.S. Engineering ranking. Note this is THE subject ranking, not U.S. News undergraduate engineering.")] },
+  "Yale University": { majorSpecific: [theCsRank(13, "#13 U.S. Computer Science", ["Computer Science", "Data Science", "Artificial Intelligence"])] },
+  "New York University": { majorSpecific: [theCsRank(15)] },
+  "University of Pennsylvania": { majorSpecific: [theCsRank(20, "#20 U.S. Computer Science", ["Computer Science", "Data Science", "Artificial Intelligence", "Engineering"])] },
+  "University of Chicago": { majorSpecific: [theCsRank(21, "#21 U.S. Computer Science", ["Computer Science", "Data Science", "Artificial Intelligence", "Mathematics"])] },
+  "University of Southern California": { majorSpecific: [theCsRank(23, "#23 U.S. Computer Science", ["Computer Science", "Data Science", "Artificial Intelligence", "Software Engineering", "Engineering"])] },
+  "University of California, Santa Barbara": { majorSpecific: [theCsRank(26, "#26 U.S. Computer Science", ["Computer Science", "Data Science", "Engineering"])] },
+  "Brown University": { majorSpecific: [theCsRank(29, "#29 U.S. Computer Science", ["Computer Science", "Data Science", "Artificial Intelligence"])] },
+  "University of California, Irvine": { majorSpecific: [theCsRank(30, "#30 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"])] },
+  "Northeastern University": { majorSpecific: [theCsRank(33)] },
+  "Boston University": { majorSpecific: [theCsRank(34, "#34 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of California, Davis": { majorSpecific: [theCsRank(34, "#34 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of North Carolina at Chapel Hill": { majorSpecific: [theCsRank(34, "#34 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of Notre Dame": { majorSpecific: [theCsRank(40, "#40 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of Virginia": { majorSpecific: [theCsRank(40, "#40 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Arizona State University": { majorSpecific: [theCsRank(45, "#45 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering", "Artificial Intelligence"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of Florida": { majorSpecific: [theCsRank(45, "#45 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Vanderbilt University": { majorSpecific: [theCsRank(45, "#45 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Dartmouth College": { majorSpecific: [theCsRank(56, "#56 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Washington University in St. Louis": { majorSpecific: [theCsRank(56, "#56 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "University of Georgia": { majorSpecific: [theCsRank(64, "#64 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Florida State University": { majorSpecific: [theCsRank(104, "#104 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Tufts University": { majorSpecific: [theCsRank(104, "#104 U.S. Computer Science", ["Computer Science", "Data Science", "Software Engineering"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+  "Georgetown University": { majorSpecific: [theCsRank(112, "#112 U.S. Computer Science", ["Computer Science", "Data Science", "Technology Policy"], "Verified from Times Higher Education 2026 U.S. Computer Science ranking; tied band in THE table.")] },
+};
+
+// Business/Economics rankings change yearly and should be rechecked. Use
+// these only as program-strength context, never as admissions predictions.
+const BUSINESS_ECONOMICS_RANKINGS = {
+  "Massachusetts Institute of Technology": { majorSpecific: [
+    theBusinessRank(1, "#1 U.S. Business Schools", ["Business", "Economics", "Finance", "Management", "Entrepreneurship", "Data Science", "Operations"]),
+    usNewsBusinessRank(1, "#1 Undergraduate Business", ["Business", "Management", "Analytics", "Operations", "Entrepreneurship"], "Verified from Poets&Quants report on U.S. News 2026 undergraduate business rankings; MIT tied with Wharton at #1."),
+  ] },
+  "University of Pennsylvania": { majorSpecific: [
+    theBusinessRank(6, "#6 U.S. Business Schools", ["Business", "Economics", "Finance", "Accounting", "Marketing", "Management", "Entrepreneurship"]),
+    pqBusinessRank(1, "#1 Best Undergraduate Business Schools", ["Business", "Finance", "Accounting", "Marketing", "Management", "Entrepreneurship", "Economics"]),
+    usNewsBusinessRank(1, "#1 Undergraduate Business", ["Business", "Finance", "Accounting", "Marketing", "Management", "Real Estate", "Economics"], "Verified from Poets&Quants report on U.S. News 2026 undergraduate business rankings; Wharton tied with MIT at #1."),
+  ] },
+  "Stanford University": { majorSpecific: [theBusinessRank(2, "#2 U.S. Business Schools", ["Business", "Economics", "Entrepreneurship", "Management", "Finance", "Data Science"])] },
+  "University of California, Berkeley": { majorSpecific: [theBusinessRank(3, "#3 U.S. Business Schools", ["Business", "Economics", "Finance", "Entrepreneurship", "Data Science", "Management"])] },
+  "Harvard University": { majorSpecific: [theBusinessRank(4, "#4 U.S. Business Schools", ["Economics", "Business", "Finance", "Public Policy", "Management", "Entrepreneurship"])] },
+  "University of Chicago": { majorSpecific: [theBusinessRank(5, "#5 U.S. Business Schools", ["Economics", "Business", "Finance", "Public Policy", "Data Science"])] },
+  "Yale University": { majorSpecific: [theBusinessRank(7, "#7 U.S. Business Schools", ["Economics", "Business", "Political Science", "Public Policy", "Global Affairs"])] },
+  "Columbia University": { majorSpecific: [theBusinessRank(8, "#8 U.S. Business Schools", ["Economics", "Business", "Finance", "Political Science", "Data Science"])] },
+  "Cornell University": { majorSpecific: [
+    theBusinessRank(9, "#9 U.S. Business Schools", ["Business", "Economics", "Finance", "Applied Economics", "Management", "Hotel Administration"]),
+    pqBusinessRank(3, "#3 Best Undergraduate Business Schools", ["Business", "Economics", "Applied Economics", "Management", "Finance"]),
+  ] },
+  "Northwestern University": { majorSpecific: [theBusinessRank(10, "#10 U.S. Business Schools", ["Economics", "Business", "Finance", "Communication", "Management"])] },
+  "New York University": { majorSpecific: [
+    theBusinessRank(11, "#11 U.S. Business Schools", ["Business", "Economics", "Finance", "Marketing", "Entrepreneurship", "Data Science"]),
+    pqBusinessRank(6, "#6 Best Undergraduate Business Schools", ["Business", "Finance", "Marketing", "Economics", "Entrepreneurship"]),
+  ] },
+  "Duke University": { majorSpecific: [theBusinessRank(12, "#12 U.S. Business Schools", ["Economics", "Business", "Public Policy", "Finance", "Entrepreneurship"])] },
+  "University of California, Los Angeles": { majorSpecific: [theBusinessRank(13, "#13 U.S. Business Schools", ["Economics", "Business", "Political Science", "Finance", "Entrepreneurship"])] },
+  "University of Michigan": { majorSpecific: [
+    theBusinessRank(14, "#14 U.S. Business Schools", ["Business", "Economics", "Finance", "Marketing", "Management", "Data Science"]),
+    pqBusinessRank(4, "#4 Best Undergraduate Business Schools", ["Business", "Economics", "Finance", "Marketing", "Management", "Data Science"]),
+  ] },
+  "Carnegie Mellon University": { majorSpecific: [theBusinessRank(15, "#15 U.S. Business Schools", ["Business", "Economics", "Analytics", "Finance", "Operations", "Data Science"])] },
+  "University of Washington": { majorSpecific: [theBusinessRank(17, "#17 U.S. Business Schools", ["Business", "Economics", "Finance", "Entrepreneurship", "Data Science"])] },
+  "University of California, San Diego": { majorSpecific: [theBusinessRank(18, "#18 U.S. Business Schools", ["Economics", "Business", "Data Science", "Management", "Finance"])] },
+  "Boston University": { majorSpecific: [theBusinessRank(19, "#19 U.S. Business Schools", ["Business", "Economics", "Finance", "Marketing", "International Relations"])] },
+  "University of Southern California": { majorSpecific: [
+    theBusinessRank(20, "#20 U.S. Business Schools", ["Business", "Economics", "Finance", "Marketing", "Entrepreneurship", "Accounting"], "Verified from Times Higher Education 2026 U.S. Business Schools ranking; tied at #20."),
+    pqBusinessRank(5, "#5 Best Undergraduate Business Schools", ["Business", "Finance", "Marketing", "Accounting", "Entrepreneurship"]),
+  ] },
+  "University of Texas at Austin": { majorSpecific: [theBusinessRank(22, "#22 U.S. Business Schools", ["Business", "Economics", "Finance", "Accounting", "Marketing", "Entrepreneurship"])] },
+  "Dartmouth College": { majorSpecific: [theBusinessRank(23, "#23 U.S. Business Schools", ["Economics", "Business", "Finance", "Government"])] },
+  "University of Wisconsin-Madison": { majorSpecific: [theBusinessRank(24, "#24 U.S. Business Schools", ["Business", "Economics", "Finance", "Marketing", "Data Science"])] },
+  "University of California, Davis": { majorSpecific: [theBusinessRank(25, "#25 U.S. Business Schools", ["Economics", "Business", "Agricultural Economics", "Environmental Economics", "Management"])] },
+  "Texas A&M University": { majorSpecific: [theBusinessRank(26, "#26 U.S. Business Schools", ["Business", "Economics", "Finance", "Management", "Supply Chain", "Agribusiness"])] },
+  "University of Illinois Urbana-Champaign": { majorSpecific: [theBusinessRank(27, "#27 U.S. Business Schools", ["Business", "Economics", "Finance", "Accounting", "Data Science", "Analytics"])] },
+  "University of Virginia": { majorSpecific: [
+    theBusinessRank(28, "#28 U.S. Business Schools", ["Business", "Commerce", "Economics", "Finance", "Public Policy"]),
+    pqBusinessRank(2, "#2 Best Undergraduate Business Schools", ["Business", "Commerce", "Finance", "Management", "Marketing"]),
+  ] },
+  "Johns Hopkins University": { majorSpecific: [theBusinessRank(29, "#29 U.S. Business Schools", ["Economics", "Business", "Public Health Policy", "International Studies", "Data Science"])] },
+  "Arizona State University": { majorSpecific: [theBusinessRank(31, "#31 U.S. Business Schools", ["Business", "Economics", "Entrepreneurship", "Finance", "Marketing", "Analytics"])] },
+  "Purdue University": { majorSpecific: [theBusinessRank(32, "#32 U.S. Business Schools", ["Business", "Economics", "Management", "Operations", "Supply Chain", "Analytics"])] },
+  "University of Florida": { majorSpecific: [theBusinessRank(35, "#35 U.S. Business Schools", ["Business", "Economics", "Finance", "Marketing", "Accounting"], "Verified from Times Higher Education 2026 U.S. Business Schools ranking; tied at #35.")] },
+  "University of North Carolina at Chapel Hill": { majorSpecific: [
+    theBusinessRank(35, "#35 U.S. Business Schools", ["Business", "Economics", "Finance", "Public Policy", "Management"], "Verified from Times Higher Education 2026 U.S. Business Schools ranking; tied at #35."),
+    pqBusinessRank(8, "#8 Best Undergraduate Business Schools", ["Business", "Finance", "Management", "Marketing", "Economics"]),
+  ] },
+  "Penn State University": { majorSpecific: [theBusinessRank(37, "#37 U.S. Business Schools", ["Business", "Economics", "Finance", "Supply Chain", "Management"])] },
+  "Boston College": { majorSpecific: [theBusinessRank(38, "#38 U.S. Business Schools", ["Business", "Economics", "Finance", "Management", "Accounting"], "Verified from Times Higher Education 2026 U.S. Business Schools ranking; tied at #38.")] },
+  "Georgetown University": { majorSpecific: [pqBusinessRank(7, "#7 Best Undergraduate Business Schools", ["Business", "Finance", "International Business", "Economics", "Management"])] },
+  "University of Notre Dame": { majorSpecific: [pqBusinessRank(9, "#9 Best Undergraduate Business Schools", ["Business", "Finance", "Accounting", "Marketing", "Management"])] },
+  "Emory University": { majorSpecific: [pqBusinessRank(10, "#10 Best Undergraduate Business Schools", ["Business", "Finance", "Accounting", "Marketing", "Management", "Economics"])] },
+  "Florida State University": { majorSpecific: [theBusinessRank(62, "#62 U.S. Business Schools", ["Business", "Economics", "Finance", "Marketing", "Management"], "Verified from Times Higher Education 2026 U.S. Business Schools ranking; tied band in THE table.")] },
+};
+
+// Health/Life Sciences rankings change yearly and should be rechecked. Use
+// these only as program-strength context, never as admissions predictions.
+const HEALTH_LIFE_SCIENCES_RANKINGS = {
+  "Harvard University": { majorSpecific: [
+    theMedicineRank(1),
+    healthRank("Times Higher Education", "World Life Sciences", 1, "#1 World Life Sciences", ["Biology", "Biochemistry", "Neuroscience", "Pre-Med", "Life Sciences"], "Verified from Times Higher Education 2026 Life Sciences ranking highlights."),
+    healthRank("Niche", "Best Colleges for Biology", 1, "#1 Best Colleges for Biology", ["Biology", "Pre-Med", "Biochemistry", "Neuroscience"], "Verified from Niche 2026 Best Colleges for Biology listing."),
+  ] },
+  "Johns Hopkins University": { majorSpecific: [
+    theMedicineRank(2, "#2 U.S. Medicine", ["Pre-Med", "Public Health", "Biology", "Neuroscience", "Biomedical Engineering", "Health Sciences"], "Verified from Times Higher Education 2026 U.S. Medicine ranking; tied at #2."),
+    healthRank("U.S. News & World Report", "Graduate Nursing Master's", 1, "#1 Graduate Nursing Master's", ["Nursing", "Health Sciences", "Public Health"], "Verified from secondary report on U.S. News 2026 graduate nursing rankings."),
+  ] },
+  "Stanford University": { majorSpecific: [
+    theMedicineRank(2, "#2 U.S. Medicine", ["Pre-Med", "Biology", "Human Biology", "Biomedical Sciences", "Neuroscience", "Public Health"], "Verified from Times Higher Education 2026 U.S. Medicine ranking; tied at #2."),
+    healthRank("Niche", "Best Colleges for Biology", 2, "#2 Best Colleges for Biology", ["Biology", "Pre-Med", "Human Biology", "Neuroscience"], "Verified from Niche 2026 Best Colleges for Biology listing."),
+  ] },
+  "Yale University": { majorSpecific: [theMedicineRank(4, "#4 U.S. Medicine", ["Pre-Med", "Biology", "Neuroscience", "Public Health", "Health Sciences"])] },
+  "University of California, Berkeley": { majorSpecific: [theMedicineRank(5, "#5 U.S. Medicine", ["Pre-Med", "Biology", "Public Health", "Molecular Biology", "Biochemistry", "Health Sciences"])] },
+  "Massachusetts Institute of Technology": { majorSpecific: [healthRank("QS", "Biological Sciences", 2, "#2 Biological Sciences", ["Biology", "Biochemistry", "Biological Engineering", "Pre-Med", "Biomedical Sciences"], "Verified from QS 2026 Biological Sciences ranking snippet.")] },
+  "University of Pennsylvania": { majorSpecific: [healthRank("Niche", "Best Colleges for Biology", 3, "#3 Best Colleges for Biology", ["Biology", "Pre-Med", "Biochemistry", "Neuroscience", "Health Sciences"], "Verified from Niche 2026 Best Colleges for Biology listing.")] },
+  "Brown University": { majorSpecific: [healthRank("Niche", "Best Colleges for Biology", 4, "#4 Best Colleges for Biology", ["Biology", "Pre-Med", "Public Health", "Neuroscience", "Biochemistry"], "Verified from Niche 2026 Best Colleges for Biology listing.")] },
+  "Duke University": { majorSpecific: [
+    healthRank("Niche", "Best Colleges for Biology", 5, "#5 Best Colleges for Biology", ["Biology", "Pre-Med", "Neuroscience", "Public Health", "Biomedical Engineering"], "Verified from Niche 2026 Best Colleges for Biology listing."),
+    healthRank("U.S. News & World Report", "Bachelor of Science in Nursing Programs", 1, "#1 BSN Programs", ["Nursing", "Health Sciences", "Pre-Health"], "Verified from official Duke University School of Nursing rankings page."),
+  ] },
+  "Emory University": { majorSpecific: [
+    healthRank("U.S. News & World Report", "Undergraduate Nursing", 2, "#2 Undergraduate Nursing", ["Nursing", "Health Sciences", "Pre-Health", "Public Health"], "Verified from secondary nursing source citing U.S. News undergraduate nursing rank."),
+    healthRank("U.S. News & World Report", "Graduate Nursing Master's", 2, "#2 Graduate Nursing Master's", ["Nursing", "Health Sciences", "Public Health"], "Verified from secondary report on U.S. News 2026 graduate nursing rankings."),
+  ] },
+  "University of California, Davis": { majorSpecific: [healthRank("U.S. News & World Report", "Biological Sciences Graduate Programs", 21, "#21 Biological Sciences Graduate Programs", ["Biology", "Biochemistry", "Life Sciences", "Pre-Veterinary", "Animal Science"], "Verified from UC Davis College of Biological Sciences news release. Graduate ranking used as research-strength context, not undergraduate admissions evidence.")] },
+  "University of California, Los Angeles": { majorSpecific: [healthRank("Niche", "Biology / Pre-Health Context", null, "Strong life sciences and pre-health context", ["Biology", "Pre-Med", "Neuroscience", "Public Health", "Health Sciences"], "Exact 2026 biology/life-science rank not entered. Use qualitative school-enrichment context unless verified later.", "2026", false)] },
+  "University of California, San Diego": { majorSpecific: [healthRank("School Data", "Biology / Bioengineering Context", null, "Strong biology, bioengineering, and research context", ["Biology", "Bioengineering", "Pre-Med", "Neuroscience", "Public Health"], "Exact rank not entered. Use as qualitative context only until verified.", "2026", false)] },
+  "Washington University in St. Louis": { majorSpecific: [healthRank("School Data", "Pre-Med / Biology Context", null, "Strong pre-med, biology, biomedical engineering, and health research context", ["Biology", "Pre-Med", "Biomedical Engineering", "Neuroscience", "Health Sciences"], "Exact rank not entered. Use as qualitative context only until verified.", "2026", false)] },
+  "Rice University": { majorSpecific: [healthRank("School Data", "Pre-Med / Biosciences Context", null, "Strong biosciences, pre-med, and Houston medical ecosystem context", ["Biology", "Pre-Med", "Biosciences", "Biomedical Engineering", "Health Sciences"], "Exact rank not entered. Use as qualitative context only until verified.", "2026", false)] },
+};
+
+const STUDENT_LIFE_NOTE = "Verified from Niche 2026 Colleges with the Best Student Life listing.";
+const SOCIAL_SCENE_NOTE = "Verified from Business Insider report on Niche 2026 party-school rankings. Use only as campus/social context, not academic quality.";
+
+// Arts/media and campus-life rankings change yearly and should be rechecked.
+// Campus-life rankings are preference/context signals, not academic rankings.
+const ARTS_MEDIA_CAMPUS_LIFE_RANKINGS = {
+  "University of Southern California": {
+    majorSpecific: [artsMediaRank("Best Colleges for Design", 3, "#3 Best Colleges for Design", ["Design", "Media Studies", "Film", "Communications", "Architecture", "Arts"], "Verified from Niche 2026 Best Colleges for Design listing.")],
+    campusLife: [campusLifeRank("Niche", "Best Student Life", 1, "#1 Colleges with the Best Student Life", STUDENT_LIFE_NOTE), campusLifeRank("Niche / Business Insider", "Party Schools / Social Scene", 4, "#4 Party Schools / Social Scene", SOCIAL_SCENE_NOTE)],
+  },
+  "University of Georgia": { campusLife: [campusLifeRank("Niche", "Best Student Life", 2, "#2 Colleges with the Best Student Life", STUDENT_LIFE_NOTE), campusLifeRank("Niche / Business Insider", "Party Schools / Social Scene", 8, "#8 Party Schools / Social Scene", SOCIAL_SCENE_NOTE)] },
+  "University of California, Los Angeles": {
+    majorSpecific: [
+      artsMediaRank("Best Colleges for Film and Photography", 12, "#12 Best Colleges for Film and Photography", ["Film", "Media Studies", "Photography", "Communications", "Arts"], "Verified from Niche 2026 Best Colleges for Film and Photography listing."),
+      artsMediaRank("Best Campus", 1, "#1 Best Campus", ["Arts", "Media", "Design", "Film", "Communications"], "Verified from SFGATE report on Niche 2026 rankings noting UCLA #1 for best campus."),
+    ],
+    campusLife: [campusLifeRank("Niche", "Best Student Life", 3, "#3 Colleges with the Best Student Life", STUDENT_LIFE_NOTE), campusLifeRank("Niche", "Best Campus", 1, "#1 Best Campus", "Verified from SFGATE report on Niche 2026 rankings noting UCLA #1 for best campus.")],
+  },
+  "University of Michigan": { campusLife: [campusLifeRank("Niche", "Best Student Life", 4, "#4 Colleges with the Best Student Life", STUDENT_LIFE_NOTE)] },
+  "Vanderbilt University": { campusLife: [campusLifeRank("Niche", "Best Student Life", 5, "#5 Colleges with the Best Student Life", STUDENT_LIFE_NOTE)] },
+  "Yale University": { campusLife: [campusLifeRank("Niche", "Best Student Life", 6, "#6 Colleges with the Best Student Life", STUDENT_LIFE_NOTE)] },
+  "Florida State University": { campusLife: [campusLifeRank("Niche", "Best Student Life", 7, "#7 Colleges with the Best Student Life", STUDENT_LIFE_NOTE), campusLifeRank("Niche / Business Insider", "Party Schools / Social Scene", 2, "#2 Party Schools / Social Scene", SOCIAL_SCENE_NOTE)] },
+  "University of California, Santa Barbara": { campusLife: [campusLifeRank("Niche", "Best Student Life", 20, "#20 Colleges with the Best Student Life", STUDENT_LIFE_NOTE), campusLifeRank("Niche / Business Insider", "Party Schools / Social Scene", 1, "#1 Party Schools / Social Scene", SOCIAL_SCENE_NOTE)] },
+  "Massachusetts Institute of Technology": { campusLife: [campusLifeRank("Niche", "Best Student Life", 21, "#21 Colleges with the Best Student Life", STUDENT_LIFE_NOTE)] },
+  "Rice University": { campusLife: [campusLifeRank("Niche", "Best Student Life", 22, "#22 Colleges with the Best Student Life", STUDENT_LIFE_NOTE)] },
+  "Washington University in St. Louis": {
+    majorSpecific: [artsMediaRank("Best Colleges for Film and Photography", 11, "#11 Best Colleges for Film and Photography", ["Film", "Photography", "Media Studies", "Arts"], "Verified from Niche 2026 Best Colleges for Film and Photography listing."), artsMediaRank("Best Colleges for Design", 2, "#2 Best Colleges for Design", ["Design", "Art", "Architecture", "Media Studies"], "Verified from Niche 2026 Best Colleges for Design listing.")],
+    campusLife: [campusLifeRank("Niche", "Best Student Life", 24, "#24 Colleges with the Best Student Life", STUDENT_LIFE_NOTE)],
+  },
+  "Emory University": { majorSpecific: [artsMediaRank("Best Colleges for Film and Photography", 13, "#13 Best Colleges for Film and Photography", ["Film", "Photography", "Media Studies", "Creative Writing", "Arts"], "Verified from Niche 2026 Best Colleges for Film and Photography listing.")] },
+  "Carnegie Mellon University": { majorSpecific: [artsMediaRank("Best Colleges for Design", 1, "#1 Best Colleges for Design", ["Design", "Art", "Human-Computer Interaction", "Media Arts", "Architecture"], "Verified from Niche 2026 Best Colleges for Design listing."), artsMediaRank("Best Colleges for Film and Photography", 14, "#14 Best Colleges for Film and Photography", ["Film", "Photography", "Media Arts", "Design", "Arts"], "Verified from Niche 2026 Best Colleges for Film and Photography listing.")] },
+  "Northwestern University": { majorSpecific: [artsMediaRank("Best Colleges for Communications", 3, "#3 Best Colleges for Communications", ["Communications", "Journalism", "Media Studies", "Radio/TV/Film", "Theater"], "Verified from Niche 2026 Best Colleges for Communications listing.")] },
+  "Tulane University": { campusLife: [campusLifeRank("Niche / Business Insider", "Party Schools / Social Scene", 3, "#3 Party Schools / Social Scene", SOCIAL_SCENE_NOTE)] },
+  "University of Wisconsin-Madison": { campusLife: [campusLifeRank("Niche / Business Insider", "Party Schools / Social Scene", 5, "#5 Party Schools / Social Scene", SOCIAL_SCENE_NOTE)] },
+  "University of Illinois Urbana-Champaign": { campusLife: [campusLifeRank("Niche / Business Insider", "Party Schools / Social Scene", 10, "#10 Party Schools / Social Scene", SOCIAL_SCENE_NOTE)] },
+};
+
 const schools = [
   s("ucla", "University of California, Los Angeles", "Los Angeles, CA", "Public", "West", 33700, 9, "1290-1520", 1290, "UC", "A high-demand public research university with a broad liberal arts core, film and arts strengths, elite health sciences, and a deeply urban campus culture.", "https://www.ucla.edu", "https://admission.ucla.edu", "https://apb.ucla.edu/campus-statistics/common-data-set", "UCLA campus"),
   s("berkeley", "University of California, Berkeley", "Berkeley, CA", "Public", "West", 33000, 11, "1310-1530", 1310, "UC", "A flagship public research university known for engineering, computer science, social sciences, activism, and intense academic breadth across the Bay Area.", "https://www.berkeley.edu", "https://admissions.berkeley.edu", "https://opa.berkeley.edu/campus-data/common-data-set", "UC Berkeley campus"),
@@ -590,6 +998,22 @@ function saveSettings(settings) {
   localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings || {}));
 }
 
+function loadCollegePreferences() {
+  return { ...DEFAULT_COLLEGE_PREFERENCES, ...readJson(STORAGE_KEYS.collegePreferences, {}) };
+}
+
+function saveCollegePreferences(preferences) {
+  localStorage.setItem(STORAGE_KEYS.collegePreferences, JSON.stringify({ ...DEFAULT_COLLEGE_PREFERENCES, ...(preferences || {}) }));
+}
+
+function loadSuggestedSchools() {
+  return readJson(STORAGE_KEYS.suggestedSchools, []);
+}
+
+function saveSuggestedSchools(suggestions) {
+  localStorage.setItem(STORAGE_KEYS.suggestedSchools, JSON.stringify(Array.isArray(suggestions) ? suggestions : []));
+}
+
 function clearSavedData() {
   Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
 }
@@ -607,6 +1031,8 @@ const state = {
   reviewerSchool: localStorage.getItem(STORAGE_KEYS.reviewerSchool) || localStorage.getItem(OLD_STORAGE_KEYS.reviewerSchool) || "",
   aiReport: localStorage.getItem(STORAGE_KEYS.lastReportVersion) === REPORT_VERSION ? localStorage.getItem(STORAGE_KEYS.lastReport) || "" : "",
   generatedSummary: "",
+  collegePreferences: loadCollegePreferences(),
+  suggestedSchools: loadSuggestedSchools(),
   selectedSummarySections: { ...DEFAULT_SUMMARY_SECTIONS, ...(loadSettings().selectedSummarySections || {}) },
   aiSummaryStatus: "",
   aiStatus: "",
@@ -804,16 +1230,69 @@ ${JSON.stringify(reportContext, null, 2)}
 `;
 }
 
+function makeUsNewsOverallRanking(schoolName) {
+  const item = US_NEWS_2026_NATIONAL_UNIVERSITIES[schoolName];
+  if (!item) return null;
+  return {
+    source: "U.S. News & World Report",
+    sourceYear: "2026",
+    category: "National Universities",
+    rank: item.rank,
+    displayText: item.displayText || "",
+    url: "",
+    verified: Boolean(item.verified && item.rank !== null && item.displayText),
+    verificationNote: item.verificationNote || "",
+  };
+}
+
+function makeEngineeringCsRankings(schoolName) {
+  return (ENGINEERING_CS_RANKINGS[schoolName]?.majorSpecific || []).map((item) => ({ ...item }));
+}
+
+function makeBusinessEconomicsRankings(schoolName) {
+  return (BUSINESS_ECONOMICS_RANKINGS[schoolName]?.majorSpecific || []).map((item) => ({ ...item }));
+}
+
+function makeHealthLifeSciencesRankings(schoolName) {
+  return (HEALTH_LIFE_SCIENCES_RANKINGS[schoolName]?.majorSpecific || []).map((item) => ({ ...item }));
+}
+
+function makeArtsMediaRankings(schoolName) {
+  return (ARTS_MEDIA_CAMPUS_LIFE_RANKINGS[schoolName]?.majorSpecific || []).map((item) => ({ ...item }));
+}
+
+function makeCampusLifeRankings(schoolName) {
+  return (ARTS_MEDIA_CAMPUS_LIFE_RANKINGS[schoolName]?.campusLife || []).map((item) => ({ ...item }));
+}
+
+function rankingKey(item) {
+  return [item.source, item.sourceYear, item.category].map((part) => normalizeText(part)).join("|");
+}
+
+function mergeRankingArrays(existing = [], incoming = []) {
+  const byKey = new Map();
+  existing.forEach((item) => byKey.set(rankingKey(item), item));
+  incoming.forEach((item) => {
+    const key = rankingKey(item);
+    const current = byKey.get(key);
+    if (!current || item.verified === true || current.verified !== true) byKey.set(key, item);
+  });
+  return [...byKey.values()];
+}
+
 function s(id, name, location, type, region, size, acceptance, satRange, satLow, profile, blurb, website, admissions, cds, query) {
   const factors = profile === "UC" ? ucFactors : profile === "Public" ? publicFactors : profile === "Highly Selective" ? highlySelectiveFactors : holisticFactors;
   const imageIndex = Math.abs([...id].reduce((total, char) => total + char.charCodeAt(0), 0)) % CAMPUS_IMAGES.length;
   const repositoryCds = COLLEGE_TRANSITIONS_CDS[id];
   const detail = SCHOOL_DETAIL_DATA[id] || {};
+  const metricContext = SCHOOL_METRIC_CONTEXT[id] || {};
+  const verifiedNationalRanking = makeUsNewsOverallRanking(name);
+  const stateName = STATE_NAMES[location.split(", ").at(-1)] || location.split(", ").at(-1);
   return {
     id,
     name,
     location,
-    state: STATE_NAMES[location.split(", ").at(-1)] || location.split(", ").at(-1),
+    state: stateName,
     type,
     region,
     size,
@@ -849,6 +1328,57 @@ function s(id, name, location, type, region, size, acceptance, satRange, satLow,
     applicationCycles: detail.cycles || "See admissions site for current deadlines and plans.",
     campus: detail.campus || `${region} campus setting`,
     sports: detail.sports || "See athletics site for division and conference details.",
+    // Metric placeholders are intentionally conservative. Verify/update annual
+    // values from College Scorecard/IPEDS, official CDS files, and manually
+    // checked rankings sources before relying on them as final data.
+    schoolMetrics: {
+      rankings: {
+        sourceYear: "2026",
+        overall: [
+          verifiedNationalRanking || { source: "U.S. News & World Report", sourceYear: "2026", category: "National Universities", rank: null, displayText: "", url: "", verified: false, verificationNote: "Needs manual verification." },
+        ],
+        majorSpecific: mergeRankingArrays([
+          { source: "U.S. News & World Report", category: "Undergraduate Engineering", rank: null, displayText: "", relevantMajors: ["engineeringCS"], url: "", verified: false },
+          { source: "U.S. News & World Report", category: "Computer Science", rank: null, displayText: "", relevantMajors: ["engineeringCS"], url: "", verified: false },
+          { source: "U.S. News & World Report", category: "Business", rank: null, displayText: "", relevantMajors: ["businessSocialScience"], url: "", verified: false },
+        ], [
+          ...makeEngineeringCsRankings(name),
+          ...makeBusinessEconomicsRankings(name),
+          ...makeHealthLifeSciencesRankings(name),
+          ...makeArtsMediaRankings(name),
+        ]),
+        campusLife: mergeRankingArrays([
+          { source: "Niche", category: "Campus", rank: null, grade: "", displayText: "", url: "", verified: false },
+          { source: "Niche", category: "Safety", rank: null, grade: "", displayText: "", url: "", verified: false },
+          { source: "Niche", category: "Student Life", rank: null, grade: "", displayText: "", url: "", verified: false },
+        ], makeCampusLifeRankings(name)),
+      },
+      outcomes: {
+        graduationRate: null,
+        retentionRate: null,
+        medianEarnings: null,
+        averageAnnualCost: null,
+        acceptanceRate: acceptance,
+        satMiddle50: satRange,
+        actMiddle50: detail.act || null,
+        source: "College Scorecard / IPEDS",
+        verified: false,
+      },
+      campus: {
+        enrollmentSize: size,
+        setting: metricContext.setting || detail.campus || "",
+        city: location.split(", ")[0],
+        state: stateName,
+        region,
+        publicPrivate: type,
+        sportsConference: detail.sports || "",
+        climateTags: dedupeStrings([...(metricContext.climateTags || []), ...inferClimateTags(location, region, detail.campus || "")]),
+        safetyContext: "",
+        qualityOfLifeTags: dedupeStrings([...(metricContext.qualityOfLifeTags || []), ...inferQualityOfLifeTags(location, region, detail.campus || "")]),
+        campusTags: metricContext.campusTags || [],
+        locationAdvantages: metricContext.locationAdvantages || [],
+      },
+    },
     schoolEnrichment: emptySchoolEnrichment(),
   };
 }
@@ -863,6 +1393,8 @@ function save() {
   localStorage.setItem(STORAGE_KEYS.reviewerSchool, state.reviewerSchool || "");
   localStorage.setItem(STORAGE_KEYS.lastReport, state.aiReport || "");
   localStorage.setItem(STORAGE_KEYS.lastReportVersion, REPORT_VERSION);
+  saveCollegePreferences(state.collegePreferences);
+  saveSuggestedSchools(state.suggestedSchools);
   state.settings.selectedSummarySections = state.selectedSummarySections;
   saveSettings(state.settings);
   state.savedAt = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -876,8 +1408,9 @@ function render() {
         <div class="brand"><img class="brand-logo" src="assets/collegia-logo.png" alt="Collegia logo" /><span>Collegia</span></div>
         <nav class="tabs">
           ${tabButton("browse", "Browse Schools")}
-          ${tabButton("list", "My List")}
           ${tabButton("profile", "My Profile")}
+          ${tabButton("suggested", "Suggested Schools")}
+          ${tabButton("list", "My List")}
           ${tabButton("reviewer", "Profile Reviewer")}
         </nav>
         <div class="save-status">
@@ -902,6 +1435,7 @@ function tabButton(id, label) {
 function renderTab() {
   if (state.tab === "list") return renderMyList();
   if (state.tab === "profile") return renderProfile();
+  if (state.tab === "suggested") return renderSuggestedSchools();
   if (state.tab === "reviewer") return renderReviewer();
   return renderBrowse();
 }
@@ -1016,6 +1550,386 @@ function renderMyList() {
       `).join("") || `<div class="empty">No schools saved yet. Add schools from Browse Schools.</div>`}
     </section>
   `;
+}
+
+function renderSuggestedSchools() {
+  const profileData = getProfileData();
+  const preferences = state.collegePreferences;
+  const suggestions = Array.isArray(state.suggestedSchools) ? state.suggestedSchools : [];
+  const snapshot = buildSuggestedProfileSnapshot(profileData);
+  return `
+    <section class="hero compact-hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Suggested Schools</div>
+        <h1>Find colleges that fit your profile and preferences.</h1>
+        <p>Collegia ranks schools from the current 50-school database using your academic profile, intended major, preferences, and available school context.</p>
+      </div>
+      <aside class="snapshot">
+        <div class="notice">Suggestions are fit signals, not admissions predictions.</div>
+      </aside>
+    </section>
+
+    <section class="suggested-layout">
+      <section class="panel suggested-panel">
+        <div class="section-head no-pad"><div><h2>Profile Snapshot</h2><p class="muted">Using the information already entered in My Profile.</p></div></div>
+        <div class="snapshot-chips">${snapshot.length ? snapshot.map((item) => `<span class="profile-snapshot-chip">${escapeHtml(item)}</span>`).join("") : `<div class="empty">Add an intended major and academic details in My Profile for better recommendations.</div>`}</div>
+      </section>
+
+      <section class="panel suggested-panel">
+        <div class="section-head no-pad"><div><h2>College Preferences</h2><p class="muted">You can generate suggestions with your profile alone, or add preferences for a better match.</p></div></div>
+        <div class="preference-grid">
+          ${preferenceChipGroup("Preferred regions", "preferredRegions", PREFERENCE_OPTIONS.preferredRegions)}
+          ${preferenceChipGroup("Campus setting", "urbanSuburbanRural", PREFERENCE_OPTIONS.urbanSuburbanRural)}
+          ${preferenceChipGroup("Campus vibe", "campusVibe", PREFERENCE_OPTIONS.campusVibe)}
+          ${preferenceChipGroup("Climate", "climatePreference", PREFERENCE_OPTIONS.climatePreference)}
+          ${field("Preferred states", `<select data-preference-state><option value="">Add a state</option>${US_STATES.filter((item) => item !== "All").map((stateName) => `<option>${stateName}</option>`).join("")}</select><div class="mini-chip-row">${(preferences.preferredStates || []).map((stateName) => `<button class="mini-chip active" data-remove-pref-state="${escapeHtml(stateName)}" type="button">${escapeHtml(stateName)} ×</button>`).join("")}</div>`)}
+          ${preferenceSelect("Public/private", "publicPrivatePreference", ["Any", "Public", "Private"])}
+          ${preferenceSelect("School size", "schoolSizePreference", ["Any", "Small", "Medium", "Large"])}
+          ${preferenceSelect("Cost sensitivity", "costSensitivity", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Financial aid importance", "financialAidImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Distance from home", "distanceFromHomePreference", ["Any", "Close to home", "Far from home", "Specific region"])}
+          ${preferenceSelect("Sports importance", "sportsImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Campus safety importance", "campusSafetyImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Quality of life importance", "qualityOfLifeImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Rankings importance", "rankingsImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Major strength importance", "majorStrengthImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Research importance", "researchImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Internship/co-op importance", "internshipCoopImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Honors programs importance", "honorsProgramsImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Entrepreneurship importance", "entrepreneurshipImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Study abroad importance", "studyAbroadImportance", IMPORTANCE_LEVELS)}
+          ${preferenceSelect("Diversity importance", "diversityImportance", IMPORTANCE_LEVELS)}
+          ${field("Notes", `<textarea data-preference="notes" rows="3" placeholder="Anything else Collegia should consider?">${escapeHtml(preferences.notes || "")}</textarea>`)}
+        </div>
+        <div class="actions suggested-actions">
+          <button class="btn primary" data-generate-suggestions type="button">Generate Suggestions</button>
+          <button class="btn ghost" data-clear-suggestion-preferences type="button">Reset preferences</button>
+        </div>
+      </section>
+
+      <section class="panel suggested-panel">
+        <div class="section-head no-pad"><div><h2>Suggestions Results</h2><p class="muted">Ranked deterministically from the current 50-school list.</p></div></div>
+        ${!profileData.intendedMajor ? `<div class="notice subtle">Add an intended major in My Profile for better recommendations.</div>` : ""}
+        ${suggestions.length ? `<div class="suggestion-grid">${suggestions.map(renderSuggestedSchoolCard).join("")}</div>` : `<div class="empty">No suggestions generated yet. Adjust preferences, then click Generate Suggestions.</div>`}
+      </section>
+    </section>
+  `;
+}
+
+function renderSuggestedSchoolCard(suggestion) {
+  const school = schools.find((item) => item.name === suggestion.schoolName);
+  if (!school) return "";
+  const saved = isSchoolSaved(school);
+  return `
+    <article class="suggestion-card">
+      <div class="suggestion-head">
+        <div>
+          <h3>${escapeHtml(school.name)}</h3>
+          <p class="muted">${escapeHtml(school.location)} · ${escapeHtml(school.type)} · ${escapeHtml(school.region)}</p>
+        </div>
+        <div class="match-badge"><strong>${Math.round(suggestion.matchScore)}</strong><span>${escapeHtml(suggestion.matchLevel)}</span></div>
+      </div>
+      <div class="tag-row">${(suggestion.categoryTags || []).slice(0, 5).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}</div>
+      ${suggestion.majorFitNote ? `<p>${escapeHtml(suggestion.majorFitNote)}</p>` : ""}
+      ${suggestion.academicRangeNote ? `<p class="muted">${escapeHtml(suggestion.academicRangeNote)}</p>` : ""}
+      ${suggestion.preferenceFitNote ? `<p class="muted">${escapeHtml(suggestion.preferenceFitNote)}</p>` : ""}
+      ${suggestion.relevantPrograms?.length ? `<p class="muted">Relevant school context: ${escapeHtml(formatList(suggestion.relevantPrograms.slice(0, 3)))}.</p>` : ""}
+      ${suggestion.relevantRankings?.length ? `<p class="muted">Ranking context: ${escapeHtml(formatList(suggestion.relevantRankings.slice(0, 2)))}.</p>` : ""}
+      ${suggestion.fitReasons?.length ? `<div class="suggestion-list"><h4>Why it fits</h4>${suggestion.fitReasons.slice(0, 4).map((reason) => `<p>${escapeHtml(reason)}</p>`).join("")}</div>` : ""}
+      ${suggestion.tradeoffs?.length ? `<div class="suggestion-list caution"><h4>Tradeoffs</h4>${suggestion.tradeoffs.slice(0, 2).map((tradeoff) => `<p>${escapeHtml(tradeoff)}</p>`).join("")}</div>` : ""}
+      ${suggestion.dataNotes?.length ? `<p class="muted">${escapeHtml(suggestion.dataNotes[0])}</p>` : ""}
+      <div class="actions">
+        <button class="btn primary" data-open="${school.id}">Details</button>
+        <button class="btn ${saved ? "ghost" : ""}" data-save="${school.id}">${saved ? "In My List" : "Add to My List"}</button>
+      </div>
+    </article>
+  `;
+}
+
+function buildSuggestedProfileSnapshot(profileData) {
+  const parts = [];
+  if (profileData.intendedMajor) {
+    const category = getMajorCategory(profileData.intendedMajor);
+    parts.push(`${profileData.intendedMajor} applicant`);
+    if (category) parts.push(MAJOR_CATEGORY_LABELS[category] || "Other major area");
+  }
+  if (profileData.gpa) parts.push(`GPA ${profileData.gpa}`);
+  if (profileData.sat) parts.push(`SAT ${profileData.sat}`);
+  else if (profileData.act) parts.push(`ACT ${profileData.act}`);
+  if (profileData.classRank) parts.push(`Class rank ${profileData.classRank}`);
+  if (profileData.stateResidency) parts.push(`${profileData.stateResidency} resident`);
+  const rigor = evaluateCourseRigor(profileData, profileData.intendedMajor);
+  if (rigor.summary) parts.push(rigor.summary);
+  const courseSummary = buildMajorRelevantCourseSummary(profileData, profileData.intendedMajor);
+  if (courseSummary.listedRelevantCourses?.length) parts.push(`Major courses: ${formatList(courseSummary.listedRelevantCourses.slice(0, 3))}`);
+  const activities = (profileData.activities || []).slice(0, 2).map((item) => item.title).filter(Boolean);
+  if (activities.length) parts.push(`Activities: ${formatList(activities)}`);
+  const awards = (profileData.awards || []).slice(0, 2).map((item) => item.title).filter(Boolean);
+  if (awards.length) parts.push(`Awards: ${formatList(awards)}`);
+  return parts;
+}
+
+function preferenceChipGroup(label, key, options) {
+  const selected = state.collegePreferences[key] || [];
+  return `
+    <div class="field preference-chip-field">
+      <span>${label}</span>
+      <div class="mini-chip-row">
+        ${options.map((option) => {
+          const active = selected.includes(option);
+          return `<button class="mini-chip ${active ? "active" : ""}" data-pref-array="${key}" data-pref-value="${escapeHtml(option)}" type="button">${escapeHtml(option)}</button>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function preferenceSelect(label, key, options) {
+  return field(label, `<select data-preference="${key}">${options.map((option) => `<option value="${escapeHtml(option)}" ${option === state.collegePreferences[key] ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`);
+}
+
+function generateSuggestedSchools(profileData, collegePreferences, schoolList) {
+  const preferences = { ...DEFAULT_COLLEGE_PREFERENCES, ...(collegePreferences || {}) };
+  const weights = adjustedSuggestedWeights(preferences);
+  return schoolList.map((school) => scoreSuggestedSchool(profileData, preferences, school, weights))
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, 12);
+}
+
+function adjustedSuggestedWeights(preferences) {
+  const weights = { ...suggestedSchoolWeights };
+  if (preferences.rankingsImportance === "High") weights.rankingsContextFit += 0.06;
+  if (preferences.costSensitivity === "High") weights.costResidencyFit += 0.07;
+  if (preferences.majorStrengthImportance === "High") weights.majorFit += 0.08;
+  if (preferences.internshipCoopImportance === "High") weights.opportunitiesFit += 0.06;
+  if (preferences.researchImportance === "High" || preferences.entrepreneurshipImportance === "High" || preferences.honorsProgramsImportance === "High") weights.opportunitiesFit += 0.03;
+  const total = Object.values(weights).reduce((sum, value) => sum + value, 0);
+  return Object.fromEntries(Object.entries(weights).map(([key, value]) => [key, value / total]));
+}
+
+function scoreSuggestedSchool(profileData, preferences, school, weights) {
+  const schoolProfile = getSchoolProfile(school.name);
+  const campusMetrics = school.schoolMetrics?.campus || {};
+  const majorCategory = getMajorCategory(profileData.intendedMajor);
+  const enrichment = getRelevantSchoolEnrichment(schoolProfile, profileData.intendedMajor, majorCategory);
+  const majorAlignment = getMajorSchoolFitAlignment(profileData.intendedMajor, majorCategory, schoolProfile);
+  const academic = calculateAcademicRangeFit(profileData, school);
+  const preference = calculatePreferenceFit(preferences, school);
+  const environment = calculateEnvironmentFit(preferences, school);
+  const cost = calculateCostResidencyFit(profileData, preferences, school);
+  const overallRanking = getVerifiedOverallRanking({ ...schoolProfile, schoolMetrics: school.schoolMetrics });
+  const majorRankings = getRelevantMajorRankings({ ...schoolProfile, schoolMetrics: school.schoolMetrics }, profileData.intendedMajor, majorCategory);
+  const campusLifeRankings = getRelevantCampusLifeRankings({ ...schoolProfile, schoolMetrics: school.schoolMetrics }, preferences);
+  const rankings = [
+    ...majorRankings,
+    ...campusLifeRankings,
+    overallRanking,
+    ...getRelevantRankings(schoolProfile, profileData.intendedMajor).filter((item) => item.displayText && item.verified === true),
+  ].filter(Boolean).slice(0, 3);
+  const opportunities = calculateOpportunitiesFit(preferences, school, schoolProfile, enrichment);
+  const rankingsScore = rankings.length ? ((["engineeringCS", "businessSocialScience", "lifeSciencesHealth", "humanitiesArtsMedia"].includes(majorCategory)) && majorRankings.length ? 86 : campusLifeRankings.length ? 76 : preferences.rankingsImportance === "High" ? 82 : 70) : 48;
+  const majorScore = majorAlignment.alignmentLevel === "strong" ? 90 : majorAlignment.alignmentLevel === "partial" ? 72 : majorAlignment.alignmentLevel === "limited" ? 42 : 55;
+  const matchScore = clampScore(
+    majorScore * weights.majorFit +
+    academic.score * weights.academicFit +
+    preference.score * weights.preferenceFit +
+    environment.score * weights.schoolEnvironmentFit +
+    cost.score * weights.costResidencyFit +
+    rankingsScore * weights.rankingsContextFit +
+    opportunities.score * weights.opportunitiesFit
+  );
+  const relevantPrograms = dedupeStrings([
+    ...(enrichment.relevantUndergraduateSchools || []).map((item) => item.name),
+    ...(enrichment.relevantSignaturePrograms || []).map((item) => item.name),
+    ...(enrichment.relevantExperientialOpportunities || []).map((item) => item.name),
+  ]).slice(0, 5);
+  const categoryTags = dedupeStrings([
+    school.region,
+    school.type,
+    school.size < 8000 ? "Small" : school.size < 20000 ? "Medium" : "Large",
+    ...majorAlignment.matchedStrengths.slice(0, 3),
+    ...(campusMetrics.campusTags || []).slice(0, 4),
+    ...preference.tags,
+  ]).slice(0, 7);
+  const fitReasons = dedupeStrings([
+    majorAlignment.majorFitSummary,
+    campusContextReason(school),
+    ...academic.reasons,
+    ...preference.reasons,
+    ...environment.reasons,
+    ...cost.reasons,
+    ...opportunities.reasons,
+  ]).filter(Boolean).slice(0, 5);
+  const tradeoffs = dedupeStrings([
+    majorAlignment.missingOrWeakFitNote,
+    ...academic.tradeoffs,
+    ...preference.tradeoffs,
+    ...cost.tradeoffs,
+    ...opportunities.tradeoffs,
+  ]).filter(Boolean).slice(0, 3);
+  const dataNotes = [];
+  if (!school.satRange || school.satRange === "See CDS") dataNotes.push("Some academic range data is missing, so the academic match is less specific.");
+  return {
+    schoolName: school.name,
+    matchScore,
+    matchLevel: matchScore >= 82 ? "Strong Match" : matchScore >= 68 ? "Good Match" : matchScore >= 52 ? "Possible Match" : "Limited Match",
+    fitReasons,
+    tradeoffs,
+    dataNotes,
+    categoryTags,
+    relevantRankings: rankings.map(formatRankingItemDisplay).filter(Boolean),
+    relevantPrograms,
+    academicRangeNote: academic.note,
+    majorFitNote: majorAlignment.majorFitSummary,
+    preferenceFitNote: preference.note,
+    addToMyListAvailable: true,
+  };
+}
+
+function calculateAcademicRangeFit(profileData, schoolData) {
+  const policy = schoolData.testingPolicy || "Unknown";
+  const sat = compareSATToSchool(profileData.sat, schoolData.satMiddle50 || schoolData.satRange);
+  const act = compareACTToSchool(profileData.act, schoolData.actMiddle50 || schoolData.actRange);
+  const rigor = evaluateCourseRigor(profileData, profileData.intendedMajor);
+  const reasons = [];
+  const tradeoffs = [];
+  let score = 55;
+  if (/Blind|Not Considered/i.test(policy)) {
+    reasons.push("Testing should not drive this school-specific academic read because the app data marks test scores as not considered.");
+    score += profileData.gpa ? 10 : 0;
+  } else {
+    const best = sat.status !== "missing" ? sat : act;
+    if (best.status === "above") { score += 25; reasons.push(best.note); }
+    else if (best.status === "within") { score += 15; reasons.push(best.note); }
+    else if (best.status === "below") { score -= 8; tradeoffs.push(best.note); }
+  }
+  if (profileData.gpa) {
+    const gpa = Number(profileData.gpa);
+    if (gpa >= 3.8) { score += 10; reasons.push(`A ${profileData.gpa} GPA is a strong baseline academic signal.`); }
+    else if (gpa >= 3.4) score += 4;
+  } else {
+    tradeoffs.push("GPA is missing, so the academic range fit is less specific.");
+  }
+  if (profileData.classRank) reasons.push(`Class rank/context is listed as ${profileData.classRank}.`);
+  if (rigor.score >= 75) reasons.push(`Course rigor appears strong: ${rigor.summary.replace(/\.$/, "")}.`);
+  else tradeoffs.push("Course rigor details are limited; adding AP/IB/Honors/Dual Enrollment courses would improve the recommendation.");
+  return {
+    score: clampScore(score),
+    reasons,
+    tradeoffs,
+    note: reasons.find((item) => /SAT|ACT|test/i.test(item)) || `Academic fit uses GPA, rigor, rank, and available testing ranges without estimating admissions probability.`,
+  };
+}
+
+function calculatePreferenceFit(preferences, school) {
+  const reasons = [];
+  const tradeoffs = [];
+  const tags = [];
+  let score = 55;
+  const preferredRegions = normalizeAnyArray(preferences.preferredRegions);
+  const regionMatch = preferredRegions.length ? preferredRegions.some((region) => schoolMatchesPreferredRegion(school, region)) : true;
+  if (preferredRegions.length && regionMatch) { score += 12; reasons.push(`${school.name} matches the selected regional preference.`); tags.push("Region fit"); }
+  else if (preferredRegions.length) { score -= 8; tradeoffs.push(`${school.name} is outside the selected region preference.`); }
+  const states = normalizeAnyArray(preferences.preferredStates);
+  if (states.length && states.includes(school.state)) { score += 10; reasons.push(`${school.name} is in a preferred state.`); tags.push("State fit"); }
+  else if (states.length) score -= 4;
+  if (preferences.publicPrivatePreference && preferences.publicPrivatePreference !== "Any") {
+    if (school.type === preferences.publicPrivatePreference) { score += 8; reasons.push(`It matches the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
+    else { score -= 8; tradeoffs.push(`It does not match the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
+  }
+  const size = school.size < 8000 ? "Small" : school.size < 20000 ? "Medium" : "Large";
+  if (preferences.schoolSizePreference && preferences.schoolSizePreference !== "Any") {
+    if (size === preferences.schoolSizePreference) { score += 8; reasons.push(`Its ${size.toLowerCase()} undergraduate size matches the preference.`); }
+    else { score -= 6; tradeoffs.push(`Its ${size.toLowerCase()} undergraduate size may not match the selected size preference.`); }
+  }
+  return { score: clampScore(score), reasons, tradeoffs, tags, note: reasons[0] || "Preference fit is based on selected region, state, public/private, and size preferences." };
+}
+
+function calculateEnvironmentFit(preferences, school) {
+  const reasons = [];
+  const tradeoffs = [];
+  let score = 55;
+  const campusMetrics = school.schoolMetrics?.campus || {};
+  const campusTags = campusMetrics.campusTags || [];
+  const settingPrefs = normalizeAnyArray(preferences.urbanSuburbanRural);
+  const settingText = `${campusMetrics.setting || ""} ${school.campus || ""} ${school.blurb || ""} ${campusTags.join(" ")}`.toLowerCase();
+  if (settingPrefs.length) {
+    const matched = settingPrefs.some((pref) => {
+      const key = pref.toLowerCase();
+      return settingText.includes(key) || settingText.includes(key.replace("college town", "college-town"));
+    });
+    if (matched) { score += 14; reasons.push("Campus setting appears to match the selected setting preferences."); }
+    else { score -= 6; tradeoffs.push("Campus setting may not match the selected setting preferences."); }
+  }
+  const vibeMatches = matchVibePreferences(preferences.campusVibe || [], school);
+  score += Math.min(20, vibeMatches.length * 5);
+  reasons.push(...vibeMatches.slice(0, 3).map((tag) => `${school.name} has a ${tag.toLowerCase()} signal in the current app data.`));
+  const climatePrefs = normalizeAnyArray(preferences.climatePreference);
+  const climateTags = campusMetrics.climateTags || inferClimateTags(school.location, school.region, school.campus);
+  if (climatePrefs.length && climatePrefs.some((pref) => climateTags.includes(pref))) {
+    score += 7;
+    reasons.push("Climate tags appear to match the selected preference.");
+  }
+  if (preferences.sportsImportance === "High" && /NCAA Division I|Big Ten|SEC|ACC|Big 12|Ivy League/i.test(school.sports || "")) {
+    score += 6;
+    reasons.push("Sports/school-spirit context appears relevant from the app data.");
+  }
+  return { score: clampScore(score), reasons, tradeoffs };
+}
+
+function calculateCostResidencyFit(profileData, preferences, school) {
+  const reasons = [];
+  const tradeoffs = [];
+  let score = 60;
+  const sensitivity = preferences.costSensitivity || "Medium";
+  const inState = profileData.stateResidency && school.state && normalizeText(profileData.stateResidency) === normalizeText(school.state);
+  if (school.type === "Public" && inState) {
+    score += sensitivity === "High" ? 24 : 14;
+    reasons.push("This is an in-state public option, so cost/residency context may be more favorable.");
+  } else if (school.type === "Public" && profileData.stateResidency && !inState) {
+    if (sensitivity === "High") score -= 18;
+    tradeoffs.push(`As an out-of-state public university for a ${profileData.stateResidency} resident, cost and selectivity may need extra attention.`);
+  } else if (school.type === "Private" && sensitivity === "High") {
+    score -= 4;
+    tradeoffs.push("Private college cost will depend heavily on net price and financial aid; verify with each school's calculator.");
+  }
+  if (preferences.financialAidImportance === "High") {
+    tradeoffs.push("Financial aid importance is high, but net price data is not yet verified in the app for this school.");
+  }
+  return { score: clampScore(score), reasons, tradeoffs };
+}
+
+function calculateOpportunitiesFit(preferences, school, schoolProfile, enrichment) {
+  const reasons = [];
+  const tradeoffs = [];
+  let score = 55;
+  const campusMetrics = school.schoolMetrics?.campus || {};
+  const text = `${school.blurb} ${schoolProfile.institutionalPersonality || ""} ${(campusMetrics.campusTags || []).join(" ")} ${(campusMetrics.locationAdvantages || []).join(" ")} ${JSON.stringify(enrichment)}`.toLowerCase();
+  const checks = [
+    [preferences.researchImportance, /research|lab|assistantship|science|medical|public health/, "research opportunities"],
+    [preferences.internshipCoopImportance, /co-op|internship|urban|industry|network|city|seattle|boston|atlanta|new york|los angeles|dc|silicon valley/, "internship, co-op, or location-based opportunities"],
+    [preferences.honorsProgramsImportance, /honors|barrett|residential college/, "honors or residential academic pathways"],
+    [preferences.entrepreneurshipImportance, /entrepreneur|startup|innovation|create-x|business|venture/, "entrepreneurship or innovation context"],
+    [preferences.studyAbroadImportance, /global|international|study abroad/, "global or international context"],
+    [preferences.diversityImportance, /urban|public mission|community|global|large/, "broad community or diversity context"],
+  ];
+  checks.forEach(([importance, regex, label]) => {
+    if (importance !== "High") return;
+    if (regex.test(text)) {
+      score += 8;
+      reasons.push(`The app data includes ${label}.`);
+    } else {
+      tradeoffs.push(`${label[0].toUpperCase()}${label.slice(1)} are not strongly documented in the current app data.`);
+    }
+  });
+  return { score: clampScore(score), reasons, tradeoffs };
+}
+
+function campusContextReason(school) {
+  const campus = school.schoolMetrics?.campus || {};
+  const pieces = dedupeStrings([...(campus.campusTags || []), ...(campus.locationAdvantages || [])]).slice(0, 3);
+  if (!pieces.length) return "";
+  return `${school.name} also offers context such as ${formatList(pieces)}.`;
 }
 
 function renderDetail(school) {
@@ -1539,6 +2453,7 @@ function normalizeSchoolProfile(profile, schoolName) {
     testingPolicy: profile.testingPolicy || inferTestingPolicy(school),
     admissionsFactors: profile.admissionsFactors || school?.factors || {},
     rankings: profile.rankings || emptyRankings(),
+    schoolMetrics: profile.schoolMetrics || school?.schoolMetrics || null,
     schoolEnrichment: profile.schoolEnrichment || school?.schoolEnrichment || emptySchoolEnrichment(),
   };
 }
@@ -2264,7 +3179,10 @@ function calculateSchoolSpecificFit(profileData, schoolAdmissionsFactors, school
   const majorFitScore = scoreMajorFit(profileData, schoolProfile);
   const institutionalFitNotes = generateInstitutionalFitNotes(profileData, schoolProfile);
   const institutionalFitScore = scoreInstitutionalFit(profileData, schoolProfile);
-  const relevantRankings = getRelevantRankings(schoolProfile, profileData.intendedMajor);
+  const relevantRankings = [
+    ...getRelevantMajorRankings(schoolProfile, profileData.intendedMajor, getMajorCategory(profileData.intendedMajor)),
+    ...getRelevantRankings(schoolProfile, profileData.intendedMajor),
+  ].filter((item, index, arr) => item.displayText && item.verified === true && arr.findIndex((other) => rankingKey(other) === rankingKey(item)) === index).slice(0, 4);
   const considered = factorBreakdown.filter((factor) => factor.importance !== "Not Considered");
   const strengths = considered.filter((factor) => factor.applicantScore >= 78).slice(0, 5).map((factor) => `${factor.factor} appears well supported and matters here because the school lists it as ${factor.importance}.`);
   const weaknesses = considered.filter((factor) => factor.applicantScore < 58).slice(0, 5).map((factor) => `${factor.factor} needs clearer applicant evidence because this school lists it as ${factor.importance}.`);
@@ -2488,6 +3406,112 @@ function getRelevantRankings(schoolProfile, intendedMajor) {
     })
     .sort((a, b) => a.relevance - b.relevance)
     .slice(0, 4);
+}
+
+function getRelevantMajorRankings(schoolProfile, intendedMajor, majorCategory = getMajorCategory(intendedMajor)) {
+  const rankings = schoolProfile?.schoolMetrics?.rankings?.majorSpecific || [];
+  const major = normalizeText(intendedMajor);
+  const isCsMajor = /computer science|software|data|artificial intelligence|ai/.test(major);
+  const isEceMajor = /electrical|computer engineering|ece/.test(major);
+  const isBusinessMajor = /business|economics|finance|accounting|marketing|management|entrepreneurship|commerce|operations|analytics|supply chain|agribusiness/.test(major);
+  const isPolicyEconomicsMajor = /political science|public policy|international relations|government|global affairs|international studies/.test(major);
+  const isHealthMajor = /biology|pre-med|pre med|medicine|medical|public health|nursing|neuroscience|biochemistry|health sciences|biomedical sciences|biomedical engineering|bioengineering|life sciences|pre-veterinary|pre veterinary|animal science|biosciences/.test(major);
+  const isArtsMediaMajor = /film|media|communications|journalism|design|theater|theatre|music|fine arts|art|arts|architecture|photography|creative writing|radio|tv|television/.test(major);
+  const effectiveMajorCategory = majorCategory === "other" || !majorCategory
+    ? isArtsMediaMajor ? "humanitiesArtsMedia" : isHealthMajor ? "lifeSciencesHealth" : (isBusinessMajor || isPolicyEconomicsMajor) ? "businessSocialScience" : "other"
+    : majorCategory;
+  if (effectiveMajorCategory !== "engineeringCS" && effectiveMajorCategory !== "businessSocialScience" && effectiveMajorCategory !== "lifeSciencesHealth" && effectiveMajorCategory !== "humanitiesArtsMedia" && !isBusinessMajor && !isPolicyEconomicsMajor && !isHealthMajor && !isArtsMediaMajor) return [];
+  return rankings
+    .filter((item) => item.verified === true && item.rank !== null && item.displayText)
+    .filter((item) => {
+      const relevant = (item.relevantMajors || []).map(normalizeText);
+      const category = normalizeText(item.category);
+      const isBusinessRanking = /business|finance|accounting|marketing|management|entrepreneurship/.test(category) || relevant.some((entry) => /business|economics|finance|accounting|marketing|management|entrepreneurship|commerce|operations|analytics|supply chain|agribusiness/.test(entry));
+      const isEngineeringRanking = /engineering|computer science|electrical|computer engineering|u\.s\. engineering/.test(category) || relevant.some((entry) => /engineering|computer science|software|data science|artificial intelligence|robotics|informatics/.test(entry));
+      const isHealthRanking = /medicine|life sciences|biological sciences|biology|nursing|health|pre-health|pre-med|biosciences/.test(category) || relevant.some((entry) => /biology|biochemistry|pre-med|pre med|medicine|public health|nursing|neuroscience|health sciences|biomedical|bioengineering|life sciences|pre-veterinary|animal science|biosciences/.test(entry));
+      const isHealthCategoryRanking = /medicine|life sciences|biological sciences|biology|nursing|health|pre-health|pre-med|biosciences/.test(category);
+      const isArtsMediaRanking = /film|photography|design|communications|media|campus/.test(category) || relevant.some((entry) => /film|photography|media|communications|journalism|design|\barts?\b|architecture|theater|theatre|music|creative writing|radio|tv|television/.test(entry));
+      if (effectiveMajorCategory === "engineeringCS" && isBusinessRanking && !isEngineeringRanking) return false;
+      if (effectiveMajorCategory === "businessSocialScience" && isEngineeringRanking && !isBusinessRanking) return false;
+      if (effectiveMajorCategory === "lifeSciencesHealth" && isEngineeringRanking && !isHealthCategoryRanking) return false;
+      if (effectiveMajorCategory === "lifeSciencesHealth" && isBusinessRanking && !isHealthRanking) return false;
+      if (effectiveMajorCategory === "humanitiesArtsMedia" && (isEngineeringRanking || isBusinessRanking || isHealthRanking) && !isArtsMediaRanking) return false;
+      if (effectiveMajorCategory !== "lifeSciencesHealth" && isHealthRanking && !isBusinessRanking && !isEngineeringRanking) return false;
+      if (effectiveMajorCategory !== "humanitiesArtsMedia" && isArtsMediaRanking && !isBusinessRanking && !isEngineeringRanking && !isHealthRanking) return false;
+      if (!relevant.length) return true;
+      if (relevant.some((entry) => major && (entry.includes(major) || major.includes(entry)))) return true;
+      const relevantText = relevant.join(" ");
+      if (effectiveMajorCategory === "engineeringCS") {
+        if (isCsMajor && /computer science|data science|artificial intelligence|software engineering|computer engineering/.test(relevantText)) return true;
+        if (isEceMajor && /electrical engineering|computer engineering|electrical and computer engineering/.test(relevantText)) return true;
+        return /engineering/.test(major) && relevant.some((entry) => /engineering/.test(entry));
+      }
+      if (effectiveMajorCategory === "businessSocialScience") {
+        if (isBusinessMajor && /business|economics|finance|accounting|marketing|management|entrepreneurship|commerce|operations|analytics|supply chain|agribusiness/.test(relevantText)) return true;
+        if (isPolicyEconomicsMajor && /economics|political science|public policy|international relations|government|global affairs|international studies|business|finance/.test(relevantText)) return true;
+      }
+      if (effectiveMajorCategory === "lifeSciencesHealth") {
+        if (isHealthMajor && /biology|biochemistry|pre-med|pre med|medicine|public health|nursing|neuroscience|health sciences|biomedical|bioengineering|life sciences|pre-veterinary|animal science|biosciences/.test(relevantText)) return true;
+      }
+      if (effectiveMajorCategory === "humanitiesArtsMedia") {
+        if (isArtsMediaMajor && /film|photography|media|communications|journalism|design|\barts?\b|architecture|theater|theatre|music|creative writing|radio|tv|television/.test(relevantText)) return true;
+      }
+      return false;
+    })
+    .map((item) => {
+      const category = normalizeText(item.category);
+      const priority = isEceMajor && /electrical|computer engineering/.test(category) ? 0 :
+        isCsMajor && /computer science/.test(category) ? 0 :
+        isBusinessMajor && /undergraduate business|best undergraduate business/.test(category) ? 0 :
+        (isBusinessMajor || isPolicyEconomicsMajor) && /business schools/.test(category) ? 1 :
+        isHealthMajor && /medicine|biology|biological sciences|life sciences|nursing/.test(category) ? 0 :
+        isArtsMediaMajor && /design|film|photography|communications/.test(category) ? 0 :
+        /undergraduate engineering|best undergraduate engineering/.test(category) ? 1 :
+        /computer science/.test(category) ? 2 : 3;
+      return { ...item, relevance: priority };
+    })
+    .sort((a, b) => a.relevance - b.relevance || a.rank - b.rank)
+    .slice(0, 3);
+}
+
+function getRelevantCampusLifeRankings(schoolProfile, collegePreferences = {}) {
+  const rankings = schoolProfile?.schoolMetrics?.rankings?.campusLife || [];
+  const vibes = normalizeAnyArray(collegePreferences.campusVibe).map(normalizeText).join(" ");
+  const settings = normalizeAnyArray(collegePreferences.urbanSuburbanRural).map(normalizeText).join(" ");
+  const wantsCampusLife = collegePreferences.qualityOfLifeImportance === "High" ||
+    collegePreferences.sportsImportance === "High" ||
+    /school spirit|sports|collaborative|social|campus|student life/.test(vibes) ||
+    /college town|urban|coastal/.test(settings);
+  if (!wantsCampusLife) return [];
+  return rankings
+    .filter((item) => item.verified === true && item.rank !== null && item.displayText)
+    .map((item) => {
+      const category = normalizeText(item.category);
+      const priority = /student life/.test(category) ? 0 :
+        /campus/.test(category) ? 1 :
+        /party|social scene/.test(category) ? 2 : 3;
+      return { ...item, relevance: priority };
+    })
+    .sort((a, b) => a.relevance - b.relevance || a.rank - b.rank)
+    .slice(0, 2);
+}
+
+function getVerifiedOverallRanking(schoolProfile) {
+  const overall = schoolProfile?.schoolMetrics?.rankings?.overall || [];
+  const verifiedMetric = overall.find((item) => item.source === "U.S. News & World Report" && item.category === "National Universities" && item.verified === true && item.rank !== null && item.displayText);
+  if (verifiedMetric) return verifiedMetric;
+  const legacy = schoolProfile?.rankings?.sources || [];
+  return legacy.find((item) => item.source === "U.S. News & World Report" && item.category === "National Universities" && item.verified === true && item.rank !== null && item.displayText) || null;
+}
+
+function getRankingDisplayText(schoolProfile) {
+  const ranking = getVerifiedOverallRanking(schoolProfile);
+  return formatRankingItemDisplay(ranking);
+}
+
+function formatRankingItemDisplay(ranking) {
+  if (!ranking) return "";
+  return `${ranking.displayText} (${ranking.source}${ranking.sourceYear ? `, ${ranking.sourceYear}` : ""})`;
 }
 
 function scoreMajorFit(profileData, schoolProfile) {
@@ -2859,6 +3883,60 @@ function sortSchools(a, b) {
   }
 }
 
+function normalizeAnyArray(items) {
+  return (Array.isArray(items) ? items : []).filter((item) => item && item !== "Any" && item !== "No preference");
+}
+
+function schoolMatchesPreferredRegion(school, preferredRegion) {
+  const region = String(preferredRegion || "");
+  if (region === school.region) return true;
+  if (region === "West Coast") return ["California", "Washington", "Oregon"].includes(school.state);
+  if (region === "Pacific Northwest") return ["Washington", "Oregon"].includes(school.state);
+  if (region === "Mid-Atlantic") return ["New York", "New Jersey", "Pennsylvania", "Maryland", "District of Columbia", "Delaware", "Virginia"].includes(school.state);
+  if (region === "Southwest") return ["Arizona", "Texas", "New Mexico", "Nevada"].includes(school.state);
+  return false;
+}
+
+function inferClimateTags(location, region, campus = "") {
+  const text = `${location} ${region} ${campus}`.toLowerCase();
+  const tags = [];
+  if (/california|florida|georgia|texas|arizona|louisiana|southern|los angeles|new orleans|houston|austin|tempe|gainesville|tallahassee|atlanta|durham|chapel hill|charlottesville|nashville/.test(text)) tags.push("Warm");
+  if (/massachusetts|new hampshire|vermont|new york|michigan|wisconsin|illinois|indiana|ohio|pennsylvania|connecticut|rhode island|midwest|northeast|snow|boston|chicago|ithaca|madison|ann arbor|hanover|pittsburgh|south bend/.test(text)) tags.push("Cold/snowy");
+  if (/california|bay area|stanford|berkeley|irvine|san diego|santa barbara|seattle|washington|virginia|north carolina|tennessee/.test(text)) tags.push("Mild");
+  if (/coastal|beach|ocean|la jolla|santa barbara|los angeles|seattle|boston|new york/.test(text)) tags.push("Coastal");
+  return dedupeStrings(tags);
+}
+
+function inferQualityOfLifeTags(location, region, campus = "") {
+  const text = `${location} ${region} ${campus}`.toLowerCase();
+  return dedupeStrings([
+    /college-town|hanover|ithaca|ann arbor|madison|chapel hill|charlottesville|athens|west lafayette|college station|davis/.test(text) ? "College town" : "",
+    /urban|new york|boston|chicago|los angeles|atlanta|philadelphia|dc|seattle|austin|pittsburgh|baltimore/.test(text) ? "Urban access" : "",
+    /coastal|lakeside|riverfront|beach|la jolla|santa barbara|seattle/.test(text) ? "Water/coastal setting" : "",
+  ]);
+}
+
+function matchVibePreferences(vibes, school) {
+  const selected = normalizeAnyArray(vibes);
+  if (!selected.length) return [];
+  const campus = school.schoolMetrics?.campus || {};
+  const text = `${school.name} ${school.blurb} ${school.campus} ${school.sports} ${(campus.campusTags || []).join(" ")} ${(campus.qualityOfLifeTags || []).join(" ")} ${(campus.locationAdvantages || []).join(" ")}`.toLowerCase();
+  const patterns = {
+    "Academic/intense": /rigorous|intense|selective|academic|ivy|technology institute|mit|uchicago|princeton/,
+    "Collaborative": /collaborative|residential|community|college-town|liberal arts|close faculty/,
+    "Pre-professional": /business|engineering|nursing|communications|professional|co-op|internship|career/,
+    "Creative": /arts|film|music|theater|design|creative|media|architecture/,
+    "Research-heavy": /research|lab|medical|science|public health|biomedical/,
+    "Entrepreneurial": /entrepreneur|startup|innovation|business|silicon valley|tech scene|create-x/,
+    "School spirit/sports": /NCAA Division I|Big Ten|SEC|ACC|Big 12|school spirit|traditions/i,
+    "Service/community-focused": /service|public mission|community|jesuit|civic|social innovation/,
+    "Global/policy-focused": /global|international|policy|government|foreign service|dc|public affairs/,
+    "Tech/startup-focused": /technology|computing|computer science|engineering|startup|tech|silicon valley|seattle/,
+    "Arts/media-focused": /arts|media|film|journalism|communications|music|theater/,
+  };
+  return selected.filter((vibe) => patterns[vibe]?.test(text));
+}
+
 function activitySelect() {
   return `<select name="category">${Object.entries(ACTIVITY_GROUPS).map(([group, items]) => `<optgroup label="${group}">${items.map((item) => `<option>${item}</option>`).join("")}</optgroup>`).join("")}</select>`;
 }
@@ -2882,6 +3960,8 @@ function bindEvents() {
     state.aiReport = "";
     state.generatedSummary = "";
     state.aiSummaryStatus = "";
+    state.collegePreferences = { ...DEFAULT_COLLEGE_PREFERENCES };
+    state.suggestedSchools = [];
     state.selectedSummarySections = { ...DEFAULT_SUMMARY_SECTIONS };
     state.reviewerSchool = "";
     state.savedAt = "";
@@ -2979,6 +4059,61 @@ function bindEvents() {
     state.profile.majorCategory = "";
     state.aiReport = "";
     state.generatedSummary = "";
+    save();
+    render();
+  });
+
+  document.querySelectorAll("[data-preference]").forEach((input) => {
+    input.addEventListener("input", () => {
+      state.collegePreferences[input.dataset.preference] = input.value;
+      save();
+    });
+    input.addEventListener("change", () => {
+      state.collegePreferences[input.dataset.preference] = input.value;
+      save();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-pref-array]").forEach((button) => button.addEventListener("click", () => {
+    const key = button.dataset.prefArray;
+    const value = button.dataset.prefValue;
+    const current = Array.isArray(state.collegePreferences[key]) ? state.collegePreferences[key] : [];
+    const isAny = value === "Any" || value === "No preference";
+    if (isAny) {
+      state.collegePreferences[key] = current.includes(value) ? [] : [value];
+    } else {
+      const withoutAny = current.filter((item) => item !== "Any" && item !== "No preference");
+      state.collegePreferences[key] = withoutAny.includes(value) ? withoutAny.filter((item) => item !== value) : [...withoutAny, value];
+    }
+    save();
+    render();
+  }));
+
+  document.querySelector("[data-preference-state]")?.addEventListener("change", (event) => {
+    const value = event.currentTarget.value;
+    if (!value) return;
+    const current = state.collegePreferences.preferredStates || [];
+    if (!current.includes(value)) state.collegePreferences.preferredStates = [...current, value];
+    save();
+    render();
+  });
+
+  document.querySelectorAll("[data-remove-pref-state]").forEach((button) => button.addEventListener("click", () => {
+    state.collegePreferences.preferredStates = (state.collegePreferences.preferredStates || []).filter((item) => item !== button.dataset.removePrefState);
+    save();
+    render();
+  }));
+
+  document.querySelector("[data-clear-suggestion-preferences]")?.addEventListener("click", () => {
+    state.collegePreferences = { ...DEFAULT_COLLEGE_PREFERENCES };
+    state.suggestedSchools = [];
+    save();
+    render();
+  });
+
+  document.querySelector("[data-generate-suggestions]")?.addEventListener("click", () => {
+    state.suggestedSchools = generateSuggestedSchools(getProfileData(), state.collegePreferences, schools);
     save();
     render();
   });

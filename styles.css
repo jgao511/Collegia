@@ -1379,6 +1379,134 @@ h2 {
   color: var(--muted);
 }
 
+.suggested-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.suggested-panel {
+  padding: 18px;
+}
+
+.snapshot-chips,
+.mini-chip-row,
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profile-snapshot-chip,
+.mini-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  background: #fff;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.mini-chip {
+  cursor: pointer;
+}
+
+.mini-chip.active {
+  color: white;
+  border-color: var(--brand);
+  background: var(--brand);
+}
+
+.preference-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.preference-chip-field {
+  align-items: stretch;
+}
+
+.preference-chip-field .mini-chip-row {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfd;
+}
+
+.suggested-actions {
+  margin-top: 14px;
+}
+
+.suggestion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.suggestion-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.suggestion-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.match-badge {
+  display: grid;
+  min-width: 92px;
+  padding: 10px;
+  border-radius: 10px;
+  color: #06312e;
+  background: #dff4ef;
+  text-align: center;
+}
+
+.match-badge strong {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.match-badge span {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.suggestion-list {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f7fafb;
+}
+
+.suggestion-list h4,
+.suggestion-list p {
+  margin: 0;
+}
+
+.suggestion-list p {
+  color: var(--muted);
+}
+
+.suggestion-list.caution {
+  background: #fff8ed;
+}
+
 .source-list {
   display: flex;
   flex-wrap: wrap;
@@ -1463,6 +1591,8 @@ h2 {
   .detail-shell,
   .info-grid,
   .layout-2,
+  .preference-grid,
+  .suggestion-grid,
   .profile-grid,
   .profile-course-grid,
   .profile-experience-grid,
