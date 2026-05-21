@@ -299,6 +299,7 @@ const OLD_STORAGE_KEYS = {
 const DEFAULT_COLLEGE_PREFERENCES = {
   preferredRegions: [],
   preferredStates: [],
+  strictLocationFilters: true,
   urbanSuburbanRural: [],
   publicPrivatePreference: "Any",
   schoolSizePreference: "Any",
@@ -330,14 +331,42 @@ const PREFERENCE_OPTIONS = {
 
 const IMPORTANCE_LEVELS = ["Low", "Medium", "High"];
 
+const HARD_FILTER_KEYS = [
+  "preferredRegions",
+  "preferredStates",
+  "publicPrivatePreference",
+  "myListStatus",
+];
+
+const SOFT_PREFERENCE_KEYS = [
+  "urbanSuburbanRural",
+  "schoolSizePreference",
+  "campusVibe",
+  "costSensitivity",
+  "financialAidImportance",
+  "distanceFromHomePreference",
+  "climatePreference",
+  "sportsImportance",
+  "campusSafetyImportance",
+  "qualityOfLifeImportance",
+  "rankingsImportance",
+  "majorStrengthImportance",
+  "researchImportance",
+  "internshipCoopImportance",
+  "honorsProgramsImportance",
+  "entrepreneurshipImportance",
+  "studyAbroadImportance",
+  "diversityImportance",
+];
+
 const suggestedSchoolWeights = {
-  majorFit: 0.25,
+  majorFit: 0.30,
   academicFit: 0.2,
   preferenceFit: 0.2,
   schoolEnvironmentFit: 0.1,
   costResidencyFit: 0.1,
-  rankingsContextFit: 0.075,
-  opportunitiesFit: 0.075,
+  rankingsContextFit: 0.05,
+  opportunitiesFit: 0.05,
 };
 
 const CAMPUS_IMAGES = [
@@ -1011,7 +1040,7 @@ function loadSuggestedSchools() {
 }
 
 function saveSuggestedSchools(suggestions) {
-  localStorage.setItem(STORAGE_KEYS.suggestedSchools, JSON.stringify(Array.isArray(suggestions) ? suggestions : []));
+  localStorage.setItem(STORAGE_KEYS.suggestedSchools, JSON.stringify(suggestions || []));
 }
 
 function clearSavedData() {
@@ -1555,7 +1584,7 @@ function renderMyList() {
 function renderSuggestedSchools() {
   const profileData = getProfileData();
   const preferences = state.collegePreferences;
-  const suggestions = Array.isArray(state.suggestedSchools) ? state.suggestedSchools : [];
+  const suggestionState = normalizeSuggestionState(state.suggestedSchools);
   const snapshot = buildSuggestedProfileSnapshot(profileData);
   return `
     <section class="hero compact-hero">
@@ -1576,13 +1605,15 @@ function renderSuggestedSchools() {
       </section>
 
       <section class="panel suggested-panel">
-        <div class="section-head no-pad"><div><h2>College Preferences</h2><p class="muted">You can generate suggestions with your profile alone, or add preferences for a better match.</p></div></div>
+        <div class="section-head no-pad"><div><h2>College Preferences</h2><p class="muted">Strict filters narrow the list. Other preferences adjust match scores.</p></div></div>
+        <div class="notice subtle">Region, state, and public/private act like filters. Campus setting, climate, vibe, rankings, cost, and opportunities help rank schools.</div>
         <div class="preference-grid">
           ${preferenceChipGroup("Preferred regions", "preferredRegions", PREFERENCE_OPTIONS.preferredRegions)}
           ${preferenceChipGroup("Campus setting", "urbanSuburbanRural", PREFERENCE_OPTIONS.urbanSuburbanRural)}
           ${preferenceChipGroup("Campus vibe", "campusVibe", PREFERENCE_OPTIONS.campusVibe)}
           ${preferenceChipGroup("Climate", "climatePreference", PREFERENCE_OPTIONS.climatePreference)}
           ${field("Preferred states", `<select data-preference-state><option value="">Add a state</option>${US_STATES.filter((item) => item !== "All").map((stateName) => `<option>${stateName}</option>`).join("")}</select><div class="mini-chip-row">${(preferences.preferredStates || []).map((stateName) => `<button class="mini-chip active" data-remove-pref-state="${escapeHtml(stateName)}" type="button">${escapeHtml(stateName)} ×</button>`).join("")}</div>`)}
+          ${field("Strict location filters", `<label class="check-row"><input type="checkbox" data-preference-check="strictLocationFilters" ${preferences.strictLocationFilters !== false ? "checked" : ""} /> <span>Keep selected regions/states strict</span></label>`)}
           ${preferenceSelect("Public/private", "publicPrivatePreference", ["Any", "Public", "Private"])}
           ${preferenceSelect("School size", "schoolSizePreference", ["Any", "Small", "Medium", "Large"])}
           ${preferenceSelect("Cost sensitivity", "costSensitivity", IMPORTANCE_LEVELS)}
@@ -1610,10 +1641,40 @@ function renderSuggestedSchools() {
       <section class="panel suggested-panel">
         <div class="section-head no-pad"><div><h2>Suggestions Results</h2><p class="muted">Ranked deterministically from the current 50-school list.</p></div></div>
         ${!profileData.intendedMajor ? `<div class="notice subtle">Add an intended major in My Profile for better recommendations.</div>` : ""}
-        ${suggestions.length ? `<div class="suggestion-grid">${suggestions.map(renderSuggestedSchoolCard).join("")}</div>` : `<div class="empty">No suggestions generated yet. Adjust preferences, then click Generate Suggestions.</div>`}
+        ${renderSuggestionResults(suggestionState)}
       </section>
     </section>
   `;
+}
+
+function normalizeSuggestionState(value) {
+  if (Array.isArray(value)) {
+    return { withinFilters: value, outsideFilters: [], partialMatches: [], emptyMessage: "", generated: value.length > 0 };
+  }
+  return {
+    withinFilters: Array.isArray(value?.withinFilters) ? value.withinFilters : [],
+    outsideFilters: Array.isArray(value?.outsideFilters) ? value.outsideFilters : [],
+    partialMatches: Array.isArray(value?.partialMatches) ? value.partialMatches : [],
+    emptyMessage: value?.emptyMessage || "",
+    generated: Boolean(value?.generated),
+  };
+}
+
+function renderSuggestionResults(suggestionState) {
+  if (!suggestionState.generated) return `<div class="empty">No suggestions generated yet. Adjust preferences, then click Generate Suggestions.</div>`;
+  const sections = [];
+  if (suggestionState.withinFilters.length) {
+    sections.push(`<div class="suggestion-section"><h3>Recommended within your filters</h3><div class="suggestion-grid">${suggestionState.withinFilters.map(renderSuggestedSchoolCard).join("")}</div></div>`);
+  } else {
+    sections.push(`<div class="empty">${escapeHtml(suggestionState.emptyMessage || "No schools match your selected hard filters. Try expanding your region, state, or public/private preference.")}</div>`);
+  }
+  if (suggestionState.outsideFilters.length) {
+    sections.push(`<div class="suggestion-section outside-filter-section"><h3>Outside your filters, but strong fit</h3><p class="muted">These are separated from the main results because they miss at least one strict filter.</p><div class="suggestion-grid">${suggestionState.outsideFilters.map(renderSuggestedSchoolCard).join("")}</div></div>`);
+  }
+  if (suggestionState.partialMatches.length) {
+    sections.push(`<details class="suggestion-section partial-section"><summary>Partial or weak matches</summary><div class="suggestion-grid">${suggestionState.partialMatches.map(renderSuggestedSchoolCard).join("")}</div></details>`);
+  }
+  return sections.join("");
 }
 
 function renderSuggestedSchoolCard(suggestion) {
@@ -1691,9 +1752,21 @@ function preferenceSelect(label, key, options) {
 function generateSuggestedSchools(profileData, collegePreferences, schoolList) {
   const preferences = { ...DEFAULT_COLLEGE_PREFERENCES, ...(collegePreferences || {}) };
   const weights = adjustedSuggestedWeights(preferences);
-  return schoolList.map((school) => scoreSuggestedSchool(profileData, preferences, school, weights))
-    .sort((a, b) => b.matchScore - a.matchScore)
-    .slice(0, 12);
+  const scored = schoolList.map((school) => scoreSuggestedSchool(profileData, preferences, school, weights));
+  const withinAll = scored.filter((suggestion) => suggestion.hardFilterMatch !== false)
+    .sort((a, b) => b.matchScore - a.matchScore);
+  const withinFilters = withinAll.filter((suggestion) => suggestion.matchScore >= 50).slice(0, 10);
+  const partialMatches = withinAll.filter((suggestion) => suggestion.matchScore < 50).slice(0, 6);
+  const outsideFilters = withinAll.length > 0 && withinFilters.length < 3
+    ? getOutsideFilterStrongFits(profileData, preferences, schoolList, scored.filter((suggestion) => suggestion.hardFilterMatch === false), weights)
+    : [];
+  return {
+    withinFilters,
+    outsideFilters,
+    partialMatches,
+    emptyMessage: withinAll.length ? "" : "No schools match your selected hard filters. Try expanding your region, state, or public/private preference.",
+    generated: true,
+  };
 }
 
 function adjustedSuggestedWeights(preferences) {
@@ -1707,6 +1780,56 @@ function adjustedSuggestedWeights(preferences) {
   return Object.fromEntries(Object.entries(weights).map(([key, value]) => [key, value / total]));
 }
 
+function getMatchLevel(score) {
+  if (score >= 85) return "Strong Match";
+  if (score >= 70) return "Good Match";
+  if (score >= 50) return "Partial Match";
+  if (score >= 30) return "Weak Match";
+  return "Poor Fit";
+}
+
+function analyzeHardFilters(school, preferences) {
+  const missed = [];
+  const matched = [];
+  const strictLocation = preferences.strictLocationFilters !== false;
+  const preferredRegions = normalizeAnyArray(preferences.preferredRegions);
+  const states = normalizeAnyArray(preferences.preferredStates);
+  if (strictLocation && preferredRegions.length) {
+    if (preferredRegions.some((region) => schoolMatchesPreferredRegion(school, region))) matched.push("Selected region");
+    else missed.push(`outside your selected ${formatList(preferredRegions)} region preference`);
+  }
+  if (strictLocation && states.length) {
+    if (states.includes(school.state)) matched.push("Selected state");
+    else missed.push(`outside your selected ${formatList(states)} state preference`);
+  }
+  if (preferences.publicPrivatePreference && preferences.publicPrivatePreference !== "Any") {
+    if (school.type === preferences.publicPrivatePreference) matched.push(`${preferences.publicPrivatePreference} school`);
+    else missed.push(`does not match your ${preferences.publicPrivatePreference.toLowerCase()} school filter`);
+  }
+  return { passes: missed.length === 0, matched, missed, tradeoffs: missed.map((item) => `${school.name} is ${item}.`) };
+}
+
+function getOutsideFilterStrongFits(profileData, preferences, schoolList, excludedSuggestions, weights) {
+  return excludedSuggestions
+    .filter((suggestion) => {
+      const breakdown = suggestion.scoreBreakdown || {};
+      const hasTopProgramContext = (suggestion.relevantRankings || []).some((item) => /#1|#2|#3|#4|#5/.test(item));
+      return suggestion.scoreBeforeHardFilterPenalty >= 76 &&
+        (breakdown.majorFit >= 85 || (breakdown.academicFit >= 85 && breakdown.majorFit >= 75) || hasTopProgramContext);
+    })
+    .sort((a, b) => b.scoreBeforeHardFilterPenalty - a.scoreBeforeHardFilterPenalty)
+    .slice(0, 2)
+    .map((suggestion) => ({
+      ...suggestion,
+      matchScore: Math.min(suggestion.matchScore, 84),
+      matchLevel: "Strong Fit Outside Filters",
+      tradeoffs: dedupeStrings([
+        ...(suggestion.hardFilterMisses || []).map((miss) => `Strong fit, but ${miss}.`),
+        ...(suggestion.tradeoffs || []).filter((tradeoff) => !(suggestion.hardFilterMisses || []).some((miss) => normalizeText(tradeoff).includes(normalizeText(miss)))),
+      ]).slice(0, 4),
+    }));
+}
+
 function scoreSuggestedSchool(profileData, preferences, school, weights) {
   const schoolProfile = getSchoolProfile(school.name);
   const campusMetrics = school.schoolMetrics?.campus || {};
@@ -1717,6 +1840,7 @@ function scoreSuggestedSchool(profileData, preferences, school, weights) {
   const preference = calculatePreferenceFit(preferences, school);
   const environment = calculateEnvironmentFit(preferences, school);
   const cost = calculateCostResidencyFit(profileData, preferences, school);
+  const hardFilters = analyzeHardFilters(school, preferences);
   const overallRanking = getVerifiedOverallRanking({ ...schoolProfile, schoolMetrics: school.schoolMetrics });
   const majorRankings = getRelevantMajorRankings({ ...schoolProfile, schoolMetrics: school.schoolMetrics }, profileData.intendedMajor, majorCategory);
   const campusLifeRankings = getRelevantCampusLifeRankings({ ...schoolProfile, schoolMetrics: school.schoolMetrics }, preferences);
@@ -1729,15 +1853,21 @@ function scoreSuggestedSchool(profileData, preferences, school, weights) {
   const opportunities = calculateOpportunitiesFit(preferences, school, schoolProfile, enrichment);
   const rankingsScore = rankings.length ? ((["engineeringCS", "businessSocialScience", "lifeSciencesHealth", "humanitiesArtsMedia"].includes(majorCategory)) && majorRankings.length ? 86 : campusLifeRankings.length ? 76 : preferences.rankingsImportance === "High" ? 82 : 70) : 48;
   const majorScore = majorAlignment.alignmentLevel === "strong" ? 90 : majorAlignment.alignmentLevel === "partial" ? 72 : majorAlignment.alignmentLevel === "limited" ? 42 : 55;
-  const matchScore = clampScore(
+  const softMissCount = [preference, environment, cost, opportunities].reduce((total, item) => total + (item.tradeoffs || []).length, 0);
+  const softPenalty = softMissCount >= 5 ? 12 : softMissCount >= 3 ? 7 : softMissCount >= 2 ? 3 : 0;
+  let rawScore =
     majorScore * weights.majorFit +
     academic.score * weights.academicFit +
     preference.score * weights.preferenceFit +
     environment.score * weights.schoolEnvironmentFit +
     cost.score * weights.costResidencyFit +
     rankingsScore * weights.rankingsContextFit +
-    opportunities.score * weights.opportunitiesFit
-  );
+    opportunities.score * weights.opportunitiesFit;
+  let matchScore = clampScore(rawScore - softPenalty);
+  const capsApplied = [];
+  if (majorScore < 25 && matchScore > 45) { matchScore = 45; capsApplied.push("Major fit below 25 capped score at 45."); }
+  else if (majorScore < 40 && matchScore > 55) { matchScore = 55; capsApplied.push("Major fit below 40 capped score at 55."); }
+  if (academic.score < 35 && school.acceptance <= 15 && matchScore > 60) { matchScore = 60; capsApplied.push("Academic fit below 35 at a highly selective school capped score at 60."); }
   const relevantPrograms = dedupeStrings([
     ...(enrichment.relevantUndergraduateSchools || []).map((item) => item.name),
     ...(enrichment.relevantSignaturePrograms || []).map((item) => item.name),
@@ -1752,6 +1882,7 @@ function scoreSuggestedSchool(profileData, preferences, school, weights) {
     ...preference.tags,
   ]).slice(0, 7);
   const fitReasons = dedupeStrings([
+    hardFilters.passes ? "" : `Outside strict filters: ${formatList(hardFilters.missed)}.`,
     majorAlignment.majorFitSummary,
     campusContextReason(school),
     ...academic.reasons,
@@ -1761,18 +1892,23 @@ function scoreSuggestedSchool(profileData, preferences, school, weights) {
     ...opportunities.reasons,
   ]).filter(Boolean).slice(0, 5);
   const tradeoffs = dedupeStrings([
+    ...hardFilters.tradeoffs,
     majorAlignment.missingOrWeakFitNote,
     ...academic.tradeoffs,
     ...preference.tradeoffs,
     ...cost.tradeoffs,
     ...opportunities.tradeoffs,
+    ...capsApplied,
   ]).filter(Boolean).slice(0, 3);
   const dataNotes = [];
   if (!school.satRange || school.satRange === "See CDS") dataNotes.push("Some academic range data is missing, so the academic match is less specific.");
   return {
     schoolName: school.name,
     matchScore,
-    matchLevel: matchScore >= 82 ? "Strong Match" : matchScore >= 68 ? "Good Match" : matchScore >= 52 ? "Possible Match" : "Limited Match",
+    scoreBeforeHardFilterPenalty: clampScore(rawScore),
+    matchLevel: getMatchLevel(matchScore),
+    hardFilterMatch: hardFilters.passes,
+    hardFilterMisses: hardFilters.missed,
     fitReasons,
     tradeoffs,
     dataNotes,
@@ -1782,6 +1918,18 @@ function scoreSuggestedSchool(profileData, preferences, school, weights) {
     academicRangeNote: academic.note,
     majorFitNote: majorAlignment.majorFitSummary,
     preferenceFitNote: preference.note,
+    scoreBreakdown: {
+      majorFit: majorScore,
+      academicFit: academic.score,
+      preferenceFit: preference.score,
+      schoolEnvironmentFit: environment.score,
+      costResidencyFit: cost.score,
+      rankingsContextFit: rankingsScore,
+      opportunitiesFit: opportunities.score,
+      penalties: softPenalty,
+      capsApplied,
+      finalScore: matchScore,
+    },
     addToMyListAvailable: true,
   };
 }
@@ -1828,19 +1976,19 @@ function calculatePreferenceFit(preferences, school) {
   let score = 55;
   const preferredRegions = normalizeAnyArray(preferences.preferredRegions);
   const regionMatch = preferredRegions.length ? preferredRegions.some((region) => schoolMatchesPreferredRegion(school, region)) : true;
-  if (preferredRegions.length && regionMatch) { score += 12; reasons.push(`${school.name} matches the selected regional preference.`); tags.push("Region fit"); }
-  else if (preferredRegions.length) { score -= 8; tradeoffs.push(`${school.name} is outside the selected region preference.`); }
+  if (preferredRegions.length && regionMatch) { score += 10; reasons.push(`${school.name} matches the selected regional preference.`); tags.push("Region fit"); }
+  else if (preferredRegions.length && preferences.strictLocationFilters === false) { score -= 14; tradeoffs.push(`${school.name} is outside the selected region preference.`); }
   const states = normalizeAnyArray(preferences.preferredStates);
   if (states.length && states.includes(school.state)) { score += 10; reasons.push(`${school.name} is in a preferred state.`); tags.push("State fit"); }
-  else if (states.length) score -= 4;
+  else if (states.length && preferences.strictLocationFilters === false) { score -= 12; tradeoffs.push(`${school.name} is outside the selected state preference.`); }
   if (preferences.publicPrivatePreference && preferences.publicPrivatePreference !== "Any") {
-    if (school.type === preferences.publicPrivatePreference) { score += 8; reasons.push(`It matches the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
-    else { score -= 8; tradeoffs.push(`It does not match the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
+    if (school.type === preferences.publicPrivatePreference) { score += 6; reasons.push(`It matches the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
+    else { score -= 16; tradeoffs.push(`It does not match the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
   }
   const size = school.size < 8000 ? "Small" : school.size < 20000 ? "Medium" : "Large";
   if (preferences.schoolSizePreference && preferences.schoolSizePreference !== "Any") {
-    if (size === preferences.schoolSizePreference) { score += 8; reasons.push(`Its ${size.toLowerCase()} undergraduate size matches the preference.`); }
-    else { score -= 6; tradeoffs.push(`Its ${size.toLowerCase()} undergraduate size may not match the selected size preference.`); }
+    if (size === preferences.schoolSizePreference) { score += 10; reasons.push(`Its ${size.toLowerCase()} undergraduate size matches the preference.`); }
+    else { score -= 12; tradeoffs.push(`Its ${size.toLowerCase()} undergraduate size may not match the selected size preference.`); }
   }
   return { score: clampScore(score), reasons, tradeoffs, tags, note: reasons[0] || "Preference fit is based on selected region, state, public/private, and size preferences." };
 }
@@ -1858,23 +2006,75 @@ function calculateEnvironmentFit(preferences, school) {
       const key = pref.toLowerCase();
       return settingText.includes(key) || settingText.includes(key.replace("college town", "college-town"));
     });
-    if (matched) { score += 14; reasons.push("Campus setting appears to match the selected setting preferences."); }
-    else { score -= 6; tradeoffs.push("Campus setting may not match the selected setting preferences."); }
+    if (matched) { score += 16; reasons.push("Campus setting appears to match the selected setting preferences."); }
+    else { score -= 16; tradeoffs.push("Campus setting may not match the selected setting preferences."); }
   }
   const vibeMatches = matchVibePreferences(preferences.campusVibe || [], school);
+  const selectedVibes = normalizeAnyArray(preferences.campusVibe);
   score += Math.min(20, vibeMatches.length * 5);
   reasons.push(...vibeMatches.slice(0, 3).map((tag) => `${school.name} has a ${tag.toLowerCase()} signal in the current app data.`));
+  if (selectedVibes.length && !vibeMatches.length) {
+    score -= 10;
+    tradeoffs.push("The selected campus vibe is not strongly visible in the current school data.");
+  }
   const climatePrefs = normalizeAnyArray(preferences.climatePreference);
   const climateTags = campusMetrics.climateTags || inferClimateTags(school.location, school.region, school.campus);
   if (climatePrefs.length && climatePrefs.some((pref) => climateTags.includes(pref))) {
     score += 7;
     reasons.push("Climate tags appear to match the selected preference.");
+  } else if (climatePrefs.length) {
+    score -= 8;
+    tradeoffs.push(`Climate does not clearly match the selected ${formatList(climatePrefs)} preference.`);
   }
   if (preferences.sportsImportance === "High" && /NCAA Division I|Big Ten|SEC|ACC|Big 12|Ivy League/i.test(school.sports || "")) {
     score += 6;
     reasons.push("Sports/school-spirit context appears relevant from the app data.");
   }
   return { score: clampScore(score), reasons, tradeoffs };
+}
+
+function calculateRegionMatch(school, preferences) {
+  const selected = normalizeAnyArray(preferences.preferredRegions);
+  const matched = selected.filter((region) => schoolMatchesPreferredRegion(school, region));
+  const missed = selected.filter((region) => !schoolMatchesPreferredRegion(school, region));
+  return { score: selected.length ? (matched.length ? 100 : 0) : 60, matched, missed, tradeoffs: missed.map((region) => `Outside selected ${region} region.`) };
+}
+
+function calculateSettingMatch(school, preferences) {
+  const selected = normalizeAnyArray(preferences.urbanSuburbanRural);
+  const campus = school.schoolMetrics?.campus || {};
+  const text = `${campus.setting || ""} ${school.campus || ""} ${(campus.campusTags || []).join(" ")}`.toLowerCase();
+  const matched = selected.filter((pref) => text.includes(pref.toLowerCase()) || text.includes(pref.toLowerCase().replace("college town", "college-town")));
+  const missed = selected.filter((pref) => !matched.includes(pref));
+  return { score: selected.length ? (matched.length ? 88 : 35) : 60, matched, missed, tradeoffs: missed.map((pref) => `Does not clearly match ${pref.toLowerCase()} setting preference.`) };
+}
+
+function calculateClimateMatch(school, preferences) {
+  const selected = normalizeAnyArray(preferences.climatePreference);
+  const campus = school.schoolMetrics?.campus || {};
+  const tags = campus.climateTags || inferClimateTags(school.location, school.region, school.campus);
+  const matched = selected.filter((pref) => tags.includes(pref));
+  const missed = selected.filter((pref) => !tags.includes(pref));
+  return { score: selected.length ? (matched.length ? 85 : 40) : 60, matched, missed, tradeoffs: missed.map((pref) => `Does not clearly match ${pref.toLowerCase()} climate preference.`) };
+}
+
+function calculateCampusVibeMatch(school, preferences) {
+  const selected = normalizeAnyArray(preferences.campusVibe);
+  const matched = matchVibePreferences(selected, school);
+  const missed = selected.filter((pref) => !matched.includes(pref));
+  return { score: selected.length ? (matched.length ? 70 + Math.min(20, matched.length * 5) : 35) : 60, matched, missed, tradeoffs: missed.map((pref) => `${pref} is not strongly visible in the current school data.`) };
+}
+
+function calculateCostResidencyMatch(school, preferences, profileData) {
+  const fit = calculateCostResidencyFit(profileData, preferences, school);
+  return { score: fit.score, matched: fit.reasons, missed: [], tradeoffs: fit.tradeoffs };
+}
+
+function calculateOpportunitiesMatch(school, preferences, profileData) {
+  const schoolProfile = getSchoolProfile(school.name);
+  const enrichment = getRelevantSchoolEnrichment(schoolProfile, profileData.intendedMajor, getMajorCategory(profileData.intendedMajor));
+  const fit = calculateOpportunitiesFit(preferences, school, schoolProfile, enrichment);
+  return { score: fit.score, matched: fit.reasons, missed: [], tradeoffs: fit.tradeoffs };
 }
 
 function calculateCostResidencyFit(profileData, preferences, school) {
@@ -3431,7 +3631,7 @@ function getRelevantMajorRankings(schoolProfile, intendedMajor, majorCategory = 
       const isHealthRanking = /medicine|life sciences|biological sciences|biology|nursing|health|pre-health|pre-med|biosciences/.test(category) || relevant.some((entry) => /biology|biochemistry|pre-med|pre med|medicine|public health|nursing|neuroscience|health sciences|biomedical|bioengineering|life sciences|pre-veterinary|animal science|biosciences/.test(entry));
       const isHealthCategoryRanking = /medicine|life sciences|biological sciences|biology|nursing|health|pre-health|pre-med|biosciences/.test(category);
       const isArtsMediaRanking = /film|photography|design|communications|media|campus/.test(category) || relevant.some((entry) => /film|photography|media|communications|journalism|design|\barts?\b|architecture|theater|theatre|music|creative writing|radio|tv|television/.test(entry));
-      if (effectiveMajorCategory === "engineeringCS" && isBusinessRanking && !isEngineeringRanking) return false;
+      if (effectiveMajorCategory === "engineeringCS" && isBusinessRanking) return false;
       if (effectiveMajorCategory === "businessSocialScience" && isEngineeringRanking && !isBusinessRanking) return false;
       if (effectiveMajorCategory === "lifeSciencesHealth" && isEngineeringRanking && !isHealthCategoryRanking) return false;
       if (effectiveMajorCategory === "lifeSciencesHealth" && isBusinessRanking && !isHealthRanking) return false;
@@ -4070,6 +4270,15 @@ function bindEvents() {
     });
     input.addEventListener("change", () => {
       state.collegePreferences[input.dataset.preference] = input.value;
+      save();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-preference-check]").forEach((input) => {
+    input.addEventListener("change", () => {
+      state.collegePreferences[input.dataset.preferenceCheck] = input.checked;
+      state.suggestedSchools = [];
       save();
       render();
     });
