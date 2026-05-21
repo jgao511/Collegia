@@ -873,7 +873,7 @@ function render() {
   app.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
-        <div class="brand"><div class="brand-mark">C</div><span>Collegia</span></div>
+        <div class="brand"><img class="brand-logo" src="assets/collegia-logo.png" alt="Collegia logo" /><span>Collegia</span></div>
         <nav class="tabs">
           ${tabButton("browse", "Browse Schools")}
           ${tabButton("list", "My List")}
