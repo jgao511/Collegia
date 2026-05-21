@@ -77,6 +77,17 @@ a {
   backdrop-filter: blur(16px);
 }
 
+.save-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -241,6 +252,7 @@ h2 {
   grid-template-columns: 280px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+  min-width: 0;
 }
 
 .filter-sidebar {
@@ -249,6 +261,8 @@ h2 {
   display: grid;
   gap: 12px;
   padding: 16px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .filter-sidebar h2 {
@@ -263,6 +277,7 @@ h2 {
 .field {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .field label {
@@ -277,6 +292,7 @@ h2 {
 .field select,
 .field textarea {
   width: 100%;
+  max-width: 100%;
   min-height: 42px;
   padding: 10px 12px;
   color: var(--ink);
@@ -1238,12 +1254,20 @@ h2 {
     flex-direction: column;
   }
 
+  .tabs,
+  .save-status {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
   .controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .filter-sidebar {
     position: static;
+    width: 100%;
   }
 
   .detail-nav {
@@ -1257,9 +1281,26 @@ h2 {
     padding-inline: 12px;
   }
 
+  .topbar {
+    padding-inline: 12px;
+  }
+
   .controls,
   .compact-grid,
   .review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-sidebar {
+    padding: 12px;
+  }
+
+  .filter-sidebar input,
+  .filter-sidebar select {
+    min-width: 0;
+  }
+
+  .chip-add {
     grid-template-columns: 1fr;
   }
 
