@@ -277,6 +277,7 @@ const STORAGE_KEYS = {
   settings: "collegiaSettings",
   collegePreferences: "collegiaCollegePreferences",
   suggestedSchools: "collegiaSuggestedSchools",
+  lastAnalyzeComparison: "collegiaLastAnalyzeComparison",
   lastReport: "collegiaLastReport",
   lastReportVersion: "collegiaLastReportVersion",
   reviewerSchool: "collegiaReviewerSchool",
@@ -299,7 +300,6 @@ const OLD_STORAGE_KEYS = {
 const DEFAULT_COLLEGE_PREFERENCES = {
   preferredRegions: [],
   preferredStates: [],
-  strictLocationFilters: true,
   urbanSuburbanRural: [],
   publicPrivatePreference: "Any",
   schoolSizePreference: "Any",
@@ -319,7 +319,6 @@ const DEFAULT_COLLEGE_PREFERENCES = {
   entrepreneurshipImportance: "Medium",
   studyAbroadImportance: "Low",
   diversityImportance: "Medium",
-  notes: "",
 };
 
 const PREFERENCE_OPTIONS = {
@@ -359,14 +358,31 @@ const SOFT_PREFERENCE_KEYS = [
   "diversityImportance",
 ];
 
+const NEARBY_STATES = {
+  "New Hampshire": ["Massachusetts", "Maine", "Vermont", "New York", "Rhode Island", "Connecticut"],
+  "Massachusetts": ["New Hampshire", "Rhode Island", "Connecticut", "Vermont", "New York", "Maine"],
+  "New York": ["New Jersey", "Connecticut", "Massachusetts", "Pennsylvania", "Rhode Island", "Vermont"],
+  "New Jersey": ["New York", "Pennsylvania", "Connecticut", "Delaware"],
+  "Pennsylvania": ["New Jersey", "New York", "Delaware", "Maryland", "Ohio", "Virginia"],
+  "California": ["Oregon", "Washington", "Arizona", "Nevada"],
+  "Texas": ["Oklahoma", "Louisiana", "Arkansas", "New Mexico"],
+  "Florida": ["Georgia", "Alabama", "South Carolina"],
+  "Illinois": ["Wisconsin", "Indiana", "Michigan", "Ohio", "Iowa", "Missouri"],
+  "Michigan": ["Ohio", "Indiana", "Illinois", "Wisconsin"],
+  "Georgia": ["Florida", "South Carolina", "North Carolina", "Alabama", "Tennessee"],
+  "North Carolina": ["Virginia", "South Carolina", "Georgia", "Tennessee"],
+  "Virginia": ["North Carolina", "Maryland", "Pennsylvania", "District of Columbia", "West Virginia"],
+};
+
 const suggestedSchoolWeights = {
   majorFit: 0.30,
-  academicFit: 0.2,
+  academicFit: 0.18,
+  hardFilterFit: 0.00,
   preferenceFit: 0.2,
   schoolEnvironmentFit: 0.1,
   costResidencyFit: 0.1,
+  opportunitiesFit: 0.07,
   rankingsContextFit: 0.05,
-  opportunitiesFit: 0.05,
 };
 
 const CAMPUS_IMAGES = [
@@ -1028,11 +1044,19 @@ function saveSettings(settings) {
 }
 
 function loadCollegePreferences() {
-  return { ...DEFAULT_COLLEGE_PREFERENCES, ...readJson(STORAGE_KEYS.collegePreferences, {}) };
+  return normalizeCollegePreferences(readJson(STORAGE_KEYS.collegePreferences, {}));
 }
 
 function saveCollegePreferences(preferences) {
-  localStorage.setItem(STORAGE_KEYS.collegePreferences, JSON.stringify({ ...DEFAULT_COLLEGE_PREFERENCES, ...(preferences || {}) }));
+  localStorage.setItem(STORAGE_KEYS.collegePreferences, JSON.stringify(normalizeCollegePreferences(preferences)));
+}
+
+function normalizeCollegePreferences(preferences = {}) {
+  const normalized = { ...DEFAULT_COLLEGE_PREFERENCES, ...(preferences || {}) };
+  delete normalized.notes;
+  delete normalized.strictLocationFilters;
+  if (normalized.distanceFromHomePreference === "Specific region") normalized.distanceFromHomePreference = "Any";
+  return normalized;
 }
 
 function loadSuggestedSchools() {
@@ -1041,6 +1065,27 @@ function loadSuggestedSchools() {
 
 function saveSuggestedSchools(suggestions) {
   localStorage.setItem(STORAGE_KEYS.suggestedSchools, JSON.stringify(suggestions || []));
+}
+
+function normalizeComparison(value = {}) {
+  const schoolA = schools.find((school) => school.id === value.schoolA || school.name === value.schoolA)?.id || "";
+  const schoolB = schools.find((school) => school.id === value.schoolB || school.name === value.schoolB)?.id || "";
+  return {
+    schoolA,
+    schoolB,
+    modalOpen: Boolean(value.modalOpen && schoolA && schoolB && schoolA !== schoolB),
+    showRecommendation: Boolean(value.showRecommendation && schoolA && schoolB && schoolA !== schoolB),
+  };
+}
+
+function loadLastComparison() {
+  const normalized = normalizeComparison(readJson(STORAGE_KEYS.lastAnalyzeComparison, {}));
+  return { ...normalized, modalOpen: false, showRecommendation: false };
+}
+
+function saveLastComparison(comparison) {
+  const normalized = normalizeComparison(comparison);
+  localStorage.setItem(STORAGE_KEYS.lastAnalyzeComparison, JSON.stringify({ schoolA: normalized.schoolA, schoolB: normalized.schoolB }));
 }
 
 function clearSavedData() {
@@ -1062,6 +1107,7 @@ const state = {
   generatedSummary: "",
   collegePreferences: loadCollegePreferences(),
   suggestedSchools: loadSuggestedSchools(),
+  comparison: loadLastComparison(),
   selectedSummarySections: { ...DEFAULT_SUMMARY_SECTIONS, ...(loadSettings().selectedSummarySections || {}) },
   aiSummaryStatus: "",
   aiStatus: "",
@@ -1424,6 +1470,7 @@ function save() {
   localStorage.setItem(STORAGE_KEYS.lastReportVersion, REPORT_VERSION);
   saveCollegePreferences(state.collegePreferences);
   saveSuggestedSchools(state.suggestedSchools);
+  saveLastComparison(state.comparison);
   state.settings.selectedSummarySections = state.selectedSummarySections;
   saveSettings(state.settings);
   state.savedAt = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -1439,6 +1486,7 @@ function render() {
           ${tabButton("browse", "Browse Schools")}
           ${tabButton("profile", "My Profile")}
           ${tabButton("suggested", "Suggested Schools")}
+          ${tabButton("compare", "Compare Schools")}
           ${tabButton("list", "My List")}
           ${tabButton("reviewer", "Profile Reviewer")}
         </nav>
@@ -1465,6 +1513,7 @@ function renderTab() {
   if (state.tab === "list") return renderMyList();
   if (state.tab === "profile") return renderProfile();
   if (state.tab === "suggested") return renderSuggestedSchools();
+  if (state.tab === "compare") return renderCompareSchools();
   if (state.tab === "reviewer") return renderReviewer();
   return renderBrowse();
 }
@@ -1572,6 +1621,7 @@ function renderMyList() {
             <div class="actions">
               <button class="btn primary" data-open="${school.id}">Details</button>
               <button class="btn" data-review-school="${school.id}">Review</button>
+              <button class="btn" data-compare-school="${school.id}">Compare</button>
               <button class="btn ghost" data-save="${school.id}">Remove</button>
             </div>
           </div>
@@ -1579,6 +1629,60 @@ function renderMyList() {
       `).join("") || `<div class="empty">No schools saved yet. Add schools from Browse Schools.</div>`}
     </section>
   `;
+}
+
+function renderCompareSchools() {
+  const firstSchool = schools.find((school) => school.id === state.comparison.schoolA);
+  const secondSchool = schools.find((school) => school.id === state.comparison.schoolB);
+  const sameSchool = firstSchool && secondSchool && firstSchool.id === secondSchool.id;
+  const ready = firstSchool && secondSchool && !sameSchool;
+  return `
+    <section class="hero compact-hero">
+      <div class="hero-copy">
+        <div class="eyebrow">Compare Schools</div>
+        <h1>Compare Schools</h1>
+        <p>Choose two schools to compare your profile fit.</p>
+      </div>
+    </section>
+
+    <section class="compare-page-layout">
+      <section class="panel compare-picker-panel">
+        <div class="compare-controls">
+          ${field("School 1", schoolCompareSelect("schoolA", state.comparison.schoolA))}
+          ${field("School 2", schoolCompareSelect("schoolB", state.comparison.schoolB))}
+        </div>
+        ${ready ? `<p class="selected-compare-line">Selected: ${escapeHtml(firstSchool.name)} vs ${escapeHtml(secondSchool.name)}</p>` : ""}
+        ${sameSchool ? `<div class="notice subtle">Choose two different schools to compare.</div>` : ""}
+        <div class="actions compare-analyze-actions">
+          <button class="btn primary" data-analyze-comparison type="button" ${ready ? "" : "disabled"}>Analyze Fit</button>
+        </div>
+      </section>
+
+      ${ready && state.comparison.showRecommendation ? renderComparisonRecommendation(firstSchool, secondSchool) : ""}
+    </section>
+  `;
+}
+
+function schoolCompareSelect(key, selectedId) {
+  const savedIds = new Set(getSavedSchools().map((school) => school.id));
+  return `
+    <select data-compare-select="${key}">
+      <option value="">Choose school...</option>
+      ${schools.map((school) => `<option value="${school.id}" ${school.id === selectedId ? "selected" : ""}>${escapeHtml(school.name)}${savedIds.has(school.id) ? " (Saved)" : ""}</option>`).join("")}
+    </select>
+  `;
+}
+
+function renderComparisonRecommendation(firstSchool, secondSchool) {
+  return `<article class="comparison-recommendation"><h3>Profile-Aware Recommendation</h3><p>${escapeHtml(cleanComparisonRecommendationText(generateShortComparisonRecommendation(firstSchool, secondSchool, getProfileData(), state.collegePreferences)))}</p></article>`;
+}
+
+function cleanComparisonRecommendationText(text) {
+  return cleanComparisonLine(text)
+    .replace(/for this the intended major profile/gi, "for the current profile")
+    .replace(/That does not mean the school is a bad option, but this report has less evidence of program-specific fit from the current school data\./gi, "Program-specific data is more limited in current Collegia data.")
+    .replace(/business\/entrepreneurship ecosystem, Economics, or Entrepreneurship/gi, "business/entrepreneurship ecosystem")
+    .replace(/business\/entrepreneurship ecosystem, Economics/gi, "business/entrepreneurship ecosystem");
 }
 
 function renderSuggestedSchools() {
@@ -1605,36 +1709,11 @@ function renderSuggestedSchools() {
       </section>
 
       <section class="panel suggested-panel">
-        <div class="section-head no-pad"><div><h2>College Preferences</h2><p class="muted">Strict filters narrow the list. Other preferences adjust match scores.</p></div></div>
-        <div class="notice subtle">Region, state, and public/private act like filters. Campus setting, climate, vibe, rankings, cost, and opportunities help rank schools.</div>
-        <div class="preference-grid">
-          ${preferenceChipGroup("Preferred regions", "preferredRegions", PREFERENCE_OPTIONS.preferredRegions)}
-          ${preferenceChipGroup("Campus setting", "urbanSuburbanRural", PREFERENCE_OPTIONS.urbanSuburbanRural)}
-          ${preferenceChipGroup("Campus vibe", "campusVibe", PREFERENCE_OPTIONS.campusVibe)}
-          ${preferenceChipGroup("Climate", "climatePreference", PREFERENCE_OPTIONS.climatePreference)}
-          ${field("Preferred states", `<select data-preference-state><option value="">Add a state</option>${US_STATES.filter((item) => item !== "All").map((stateName) => `<option>${stateName}</option>`).join("")}</select><div class="mini-chip-row">${(preferences.preferredStates || []).map((stateName) => `<button class="mini-chip active" data-remove-pref-state="${escapeHtml(stateName)}" type="button">${escapeHtml(stateName)} ×</button>`).join("")}</div>`)}
-          ${field("Strict location filters", `<label class="check-row"><input type="checkbox" data-preference-check="strictLocationFilters" ${preferences.strictLocationFilters !== false ? "checked" : ""} /> <span>Keep selected regions/states strict</span></label>`)}
-          ${preferenceSelect("Public/private", "publicPrivatePreference", ["Any", "Public", "Private"])}
-          ${preferenceSelect("School size", "schoolSizePreference", ["Any", "Small", "Medium", "Large"])}
-          ${preferenceSelect("Cost sensitivity", "costSensitivity", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Financial aid importance", "financialAidImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Distance from home", "distanceFromHomePreference", ["Any", "Close to home", "Far from home", "Specific region"])}
-          ${preferenceSelect("Sports importance", "sportsImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Campus safety importance", "campusSafetyImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Quality of life importance", "qualityOfLifeImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Rankings importance", "rankingsImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Major strength importance", "majorStrengthImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Research importance", "researchImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Internship/co-op importance", "internshipCoopImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Honors programs importance", "honorsProgramsImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Entrepreneurship importance", "entrepreneurshipImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Study abroad importance", "studyAbroadImportance", IMPORTANCE_LEVELS)}
-          ${preferenceSelect("Diversity importance", "diversityImportance", IMPORTANCE_LEVELS)}
-          ${field("Notes", `<textarea data-preference="notes" rows="3" placeholder="Anything else Collegia should consider?">${escapeHtml(preferences.notes || "")}</textarea>`)}
-        </div>
+        <div class="section-head no-pad"><div><h2>Your Preferences</h2><p class="muted">Suggested Schools uses the preferences saved in My Profile.</p></div></div>
+        <div class="snapshot-chips">${renderPreferenceSummaryChips(preferences)}</div>
         <div class="actions suggested-actions">
+          <button class="btn" data-edit-preferences type="button">Edit in My Profile</button>
           <button class="btn primary" data-generate-suggestions type="button">Generate Suggestions</button>
-          <button class="btn ghost" data-clear-suggestion-preferences type="button">Reset preferences</button>
         </div>
       </section>
 
@@ -1730,6 +1809,73 @@ function buildSuggestedProfileSnapshot(profileData) {
   return parts;
 }
 
+function renderPreferenceSummaryChips(preferences = state.collegePreferences) {
+  const normalized = normalizeCollegePreferences(preferences);
+  const chips = [];
+  const addList = (label, values) => {
+    const list = normalizeAnyArray(values).filter((value) => value && value !== "Any" && value !== "No preference");
+    if (list.length) chips.push(`${label}: ${formatList(list.slice(0, 3))}`);
+  };
+  const addChoice = (label, value, neutral = ["Any", "Medium", "No preference"]) => {
+    if (value && !neutral.includes(value)) chips.push(`${label}: ${value}`);
+  };
+  addList("Regions", normalized.preferredRegions);
+  addList("States", normalized.preferredStates);
+  addChoice("Public/private", normalized.publicPrivatePreference, ["Any"]);
+  addList("Setting", normalized.urbanSuburbanRural);
+  addChoice("Size", normalized.schoolSizePreference, ["Any"]);
+  addList("Climate", normalized.climatePreference);
+  addList("Vibe", normalized.campusVibe);
+  addChoice("Cost", normalized.costSensitivity);
+  addChoice("Financial aid", normalized.financialAidImportance);
+  addChoice("Distance", normalized.distanceFromHomePreference, ["Any", "No preference"]);
+  addChoice("Sports", normalized.sportsImportance);
+  addChoice("Safety", normalized.campusSafetyImportance);
+  addChoice("Quality of life", normalized.qualityOfLifeImportance);
+  addChoice("Rankings", normalized.rankingsImportance);
+  addChoice("Major strength", normalized.majorStrengthImportance);
+  addChoice("Research", normalized.researchImportance);
+  addChoice("Internships/co-op", normalized.internshipCoopImportance);
+  addChoice("Honors", normalized.honorsProgramsImportance);
+  addChoice("Entrepreneurship", normalized.entrepreneurshipImportance);
+  addChoice("Study abroad", normalized.studyAbroadImportance);
+  addChoice("Diversity", normalized.diversityImportance);
+  if (!chips.length) return `<span class="profile-snapshot-chip">No preferences set yet</span>`;
+  return chips.slice(0, 10).map((chip) => `<span class="profile-snapshot-chip">${escapeHtml(chip)}</span>`).join("");
+}
+
+function renderCollegePreferencesCard() {
+  const preferences = state.collegePreferences;
+  return `
+    <section class="panel profile-section-card profile-card-full" id="college-preferences">
+      <div class="section-head"><div><h2>College Preferences</h2><p class="muted">Used by Suggested Schools and Compare Schools.</p></div></div>
+      <div class="preference-grid profile-preference-grid">
+        ${preferenceChipGroup("Preferred regions", "preferredRegions", PREFERENCE_OPTIONS.preferredRegions)}
+        ${preferenceChipGroup("Campus setting", "urbanSuburbanRural", PREFERENCE_OPTIONS.urbanSuburbanRural)}
+        ${preferenceChipGroup("Campus vibe", "campusVibe", PREFERENCE_OPTIONS.campusVibe)}
+        ${preferenceChipGroup("Climate", "climatePreference", PREFERENCE_OPTIONS.climatePreference)}
+        ${field("Preferred states", `<select data-preference-state><option value="">Add a state</option>${US_STATES.filter((item) => item !== "All").map((stateName) => `<option>${stateName}</option>`).join("")}</select><div class="mini-chip-row">${(preferences.preferredStates || []).map((stateName) => `<button class="mini-chip active" data-remove-pref-state="${escapeHtml(stateName)}" type="button">${escapeHtml(stateName)} &times;</button>`).join("")}</div>`)}
+        ${preferenceSelect("Public/private", "publicPrivatePreference", ["Any", "Public", "Private"])}
+        ${preferenceSelect("School size", "schoolSizePreference", ["Any", "Small", "Medium", "Large"])}
+        ${preferenceSelect("Cost sensitivity", "costSensitivity", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Financial aid importance", "financialAidImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Distance from home", "distanceFromHomePreference", ["Any", "Close to home", "Driving distance", "Far from home", "Out of state", "No preference"])}
+        ${preferenceSelect("Sports / school spirit", "sportsImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Campus safety", "campusSafetyImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Quality of life", "qualityOfLifeImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Rankings importance", "rankingsImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Major strength", "majorStrengthImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Research", "researchImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Internship / co-op", "internshipCoopImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Honors programs", "honorsProgramsImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Entrepreneurship", "entrepreneurshipImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Study abroad", "studyAbroadImportance", IMPORTANCE_LEVELS)}
+        ${preferenceSelect("Diversity", "diversityImportance", IMPORTANCE_LEVELS)}
+      </div>
+    </section>
+  `;
+}
+
 function preferenceChipGroup(label, key, options) {
   const selected = state.collegePreferences[key] || [];
   return `
@@ -1747,6 +1893,328 @@ function preferenceChipGroup(label, key, options) {
 
 function preferenceSelect(label, key, options) {
   return field(label, `<select data-preference="${key}">${options.map((option) => `<option value="${escapeHtml(option)}" ${option === state.collegePreferences[key] ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}</select>`);
+}
+
+function buildCompactSchoolComparison(profileData, collegePreferences, schoolOne, schoolTwo) {
+  const full = buildSchoolComparison(profileData, collegePreferences, schoolOne, schoolTwo);
+  const firstSchool = compactComparisonSchool(full.schoolA, schoolOne);
+  const secondSchool = compactComparisonSchool(full.schoolB, schoolTwo);
+  return {
+    firstSchool,
+    secondSchool,
+    schoolA: firstSchool,
+    schoolB: secondSchool,
+    firstSummary: buildComparisonSummaryCard(firstSchool),
+    secondSummary: buildComparisonSummaryCard(secondSchool),
+    comparisonSummary: full.comparisonSummary,
+  };
+}
+
+function compactComparisonSchool(item, school) {
+  const programs = getCompactProgramEvidence(item, 3);
+  const rankings = (item.specificEvidence.relevantMajorRankings || []).slice(0, 2);
+  const majorFitLabel = item.scoreBreakdown.majorFit >= 85 ? "Strong major fit" : item.scoreBreakdown.majorFit >= 65 ? "Moderate major fit" : "Limited major fit";
+  const preferenceFitLabel = item.scoreBreakdown.preferenceFit >= 80 ? "Strong preference fit" : item.scoreBreakdown.preferenceFit >= 60 ? "Moderate preference fit" : "Limited preference fit";
+  const preferenceItems = item.preferenceMatches.filter((line) => !/appears relevant|current app data/i.test(line)).slice(0, 2);
+  const campus = school.schoolMetrics?.campus || {};
+  return {
+    ...item,
+    school,
+    locationLine: `${school.location} - ${school.type} - ${school.schoolMetrics?.campus?.setting || school.region}`,
+    topChips: dedupeStrings([
+      item.saved ? "Saved" : "",
+      getRankingDisplayText({ schoolMetrics: school.schoolMetrics }),
+      majorFitLabel,
+    ]).filter(Boolean).slice(0, 3),
+    majorFitLabel,
+    preferenceFitLabel,
+    keyPrograms: programs,
+    keyRankings: rankings,
+    keyOpportunities: dedupeStrings([
+      ...item.specificEvidence.relevantSignaturePrograms,
+      ...item.specificEvidence.relevantExperientialOpportunities,
+      ...item.specificEvidence.relevantLocationAdvantages,
+    ].map(cleanSpecificEvidenceName).filter(Boolean)).slice(0, 3),
+    campusTags: dedupeStrings([...(campus.campusTags || []), ...(campus.qualityOfLifeTags || [])]).slice(0, 3),
+    climateTags: (campus.climateTags || []).slice(0, 3),
+    setting: campus.setting || school.campus || "",
+    sizeCategory: school.size < 8000 ? "Small" : school.size < 20000 ? "Medium" : "Large",
+    overallRanking: getRankingDisplayText({ schoolMetrics: school.schoolMetrics }),
+    costResidencyNote: buildCompactCostResidencyNote(item, school),
+    quickOverview: [
+      `${school.region} - ${school.type}`,
+      `${school.size < 8000 ? "Small" : school.size < 20000 ? "Medium" : "Large"} undergraduate size`,
+      school.schoolMetrics?.campus?.setting || school.campus || "",
+    ],
+    academicSnapshot: [
+      school.satRange && school.satRange !== "See CDS" ? `SAT: ${school.satRange}` : "",
+      school.actRange && school.actRange !== "See CDS" ? `ACT: ${school.actRange}` : "",
+      Number.isFinite(school.acceptance) ? `Acceptance context: ${school.acceptance}%` : "",
+    ],
+    programFit: [
+      majorFitLabel,
+      programs.length ? `Relevant: ${formatList(programs)}` : "Program-specific data is limited in Collegia.",
+      rankings.length ? `Verified context: ${formatList(rankings)}` : "",
+    ],
+    preferenceFit: [
+      ...(preferenceItems.length ? preferenceItems.map(cleanComparisonLine) : []),
+      (school.schoolMetrics?.campus?.climateTags || []).length ? `Climate: ${formatList(school.schoolMetrics.campus.climateTags.slice(0, 2))}` : "",
+      (school.schoolMetrics?.campus?.campusTags || []).length ? `Campus: ${formatList(school.schoolMetrics.campus.campusTags.slice(0, 2))}` : "",
+    ].slice(0, 3),
+    tradeoffs: item.tradeoffs
+      .map(cleanComparisonLine)
+      .filter((line, index, arr) => arr.findIndex((other) => normalizeText(other) === normalizeText(line)) === index)
+      .slice(0, 3),
+  };
+}
+
+function buildComparisonSummaryCard(item) {
+  return {
+    majorFitLabel: item.majorFitLabel,
+    preferenceFitLabel: item.preferenceFitLabel,
+    matchScore: item.suggestedScore,
+    keyPrograms: item.keyPrograms,
+    keyRankings: item.keyRankings,
+    tradeoffs: item.tradeoffs.slice(0, 2),
+  };
+}
+
+function buildCompactCostResidencyNote(item, school) {
+  const costLine = [...(item.preferenceMatches || []), ...(item.tradeoffs || [])].find((line) => /cost|residency|in-state|out-of-state|private/i.test(line));
+  if (costLine) return cleanComparisonLine(costLine);
+  if (school.type === "Private") return "Private school cost should be reviewed.";
+  return "Public cost depends on residency and aid.";
+}
+
+function cleanComparisonLine(line) {
+  return String(line || "")
+    .replace(/\bis does not\b/gi, "does not")
+    .replace(/\bis has\b/gi, "has")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getCompactProgramEvidence(item, limit = 3) {
+  return dedupeStrings([
+    ...item.specificEvidence.relevantUndergraduateSchools,
+    ...item.specificEvidence.relevantSignaturePrograms,
+    ...item.specificEvidence.relevantExperientialOpportunities,
+  ].map(cleanSpecificEvidenceName).filter(Boolean)).slice(0, limit);
+}
+
+function cleanSpecificEvidenceName(name) {
+  const text = String(name || "");
+  if (/^Business\/entrepreneurship ecosystem/i.test(text)) return "business/entrepreneurship ecosystem";
+  if (/^Harvard College concentrations/i.test(text)) return "Harvard College";
+  return text
+    .replace(/Business\/entrepreneurship ecosystem through campus programs,?\s*/i, "business/entrepreneurship ecosystem")
+    .replace(/,?\s+or\s+(Economics|Business|Entrepreneurship|Computer Science|Engineering|Biology|Film|Media|Communications)$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildSchoolComparison(profileData, collegePreferences, schoolA, schoolB) {
+  const preferences = normalizeCollegePreferences(collegePreferences);
+  const weights = adjustedSuggestedWeights(preferences);
+  const a = buildSingleSchoolComparison(profileData, preferences, schoolA, weights);
+  const b = buildSingleSchoolComparison(profileData, preferences, schoolB, weights);
+  return {
+    schoolA: a,
+    schoolB: b,
+    comparisonSummary: buildComparisonSummary(a, b),
+  };
+}
+
+function buildSingleSchoolComparison(profileData, preferences, school, weights) {
+  const schoolProfile = getSchoolProfile(school.name);
+  const majorCategory = getMajorCategory(profileData.intendedMajor);
+  const enrichment = getRelevantSchoolEnrichment(schoolProfile, profileData.intendedMajor, majorCategory);
+  const majorAlignment = getMajorSchoolFitAlignment(profileData.intendedMajor, majorCategory, schoolProfile);
+  const academic = calculateAcademicRangeFit(profileData, school);
+  const preference = calculatePreferenceFit(preferences, school, profileData);
+  const environment = calculateEnvironmentFit(preferences, school);
+  const cost = calculateCostResidencyFit(profileData, preferences, school);
+  const suggestion = scoreSuggestedSchool(profileData, preferences, school, weights);
+  const campus = school.schoolMetrics?.campus || {};
+  const majorRankings = getRelevantMajorRankings({ ...schoolProfile, schoolMetrics: school.schoolMetrics }, profileData.intendedMajor, majorCategory);
+  const overallRanking = getVerifiedOverallRanking({ ...schoolProfile, schoolMetrics: school.schoolMetrics });
+  const campusRankings = getRelevantCampusLifeRankings({ ...schoolProfile, schoolMetrics: school.schoolMetrics }, preferences);
+  const relevantRankings = [...majorRankings, overallRanking, ...campusRankings].filter(Boolean).slice(0, 4);
+  const profileConnections = buildComparisonProfileConnections(profileData, majorCategory, school.name);
+  const relevantUndergraduateSchools = (enrichment.relevantUndergraduateSchools || []).map((item) => item.name).filter(Boolean);
+  const relevantSignaturePrograms = (enrichment.relevantSignaturePrograms || []).map((item) => item.name).filter(Boolean);
+  const relevantExperientialOpportunities = (enrichment.relevantExperientialOpportunities || []).map((item) => item.name).filter(Boolean);
+  const relevantLocationAdvantages = (enrichment.relevantLocationAdvantages || []).map((item) => item.description || item.name).filter(Boolean);
+  return {
+    name: school.name,
+    schoolId: school.id,
+    saved: isSchoolSaved(school),
+    suggestedScore: findSuggestedScore(school.name) || suggestion.matchScore,
+    basicInfo: [
+      `${school.location} · ${school.region}`,
+      `${school.type} · ${campus.setting || school.campus || "Setting not available"}`,
+      `${school.size < 8000 ? "Small" : school.size < 20000 ? "Medium" : "Large"} undergraduate size`,
+      schoolProfile.institutionalPersonality || school.blurb,
+    ],
+    academicContext: [
+      overallRanking ? formatRankingItemDisplay(overallRanking) : "",
+      school.satRange && school.satRange !== "See CDS" ? `SAT middle 50%: ${school.satRange}` : "SAT range not available in current school data.",
+      school.actRange && school.actRange !== "See CDS" ? `ACT middle 50%: ${school.actRange}` : "",
+      Number.isFinite(school.acceptance) ? `Acceptance rate context: ${school.acceptance}%` : "",
+      school.testingPolicy ? `Testing policy: ${school.testingPolicy}` : "",
+      academic.note,
+    ],
+    majorFit: [
+      majorAlignment.majorFitSummary,
+      majorAlignment.matchedStrengths.length ? `Relevant listed strengths: ${formatList(majorAlignment.matchedStrengths.slice(0, 4))}.` : "",
+      profileConnections.length ? `Profile connection: ${profileConnections[0]}` : "",
+    ],
+    campusFit: [
+      campus.setting || school.campus || "",
+      (campus.climateTags || []).length ? `Climate: ${formatList(campus.climateTags.slice(0, 3))}.` : "",
+      (campus.campusTags || []).length ? `Campus tags: ${formatList(campus.campusTags.slice(0, 4))}.` : "",
+      (campus.qualityOfLifeTags || []).length ? `Quality-of-life tags: ${formatList(campus.qualityOfLifeTags.slice(0, 3))}.` : "",
+    ],
+    rankings: relevantRankings.map(formatRankingItemDisplay).filter(Boolean),
+    opportunities: dedupeStrings([
+      ...relevantExperientialOpportunities,
+      ...relevantLocationAdvantages,
+      enrichment.majorSpecificAdvice || "",
+    ]).slice(0, 5),
+    preferenceMatches: dedupeStrings([...preference.reasons, ...environment.reasons, ...cost.reasons]).slice(0, 5),
+    tradeoffs: dedupeStrings([...suggestion.tradeoffs, ...preference.tradeoffs, ...environment.tradeoffs, ...cost.tradeoffs]).slice(0, 5),
+    dataNotes: dedupeStrings([
+      ...(suggestion.dataNotes || []),
+      !majorRankings.length ? "No verified major-specific ranking available for this major in current Collegia data." : "",
+    ]).filter(Boolean).slice(0, 3),
+    scoreBreakdown: suggestion.scoreBreakdown,
+    specificEvidence: {
+      relevantUndergraduateSchools,
+      relevantSignaturePrograms,
+      relevantExperientialOpportunities,
+      relevantRankings: relevantRankings.map(formatRankingItemDisplay).filter(Boolean),
+      relevantMajorRankings: majorRankings.map(formatRankingItemDisplay).filter(Boolean),
+      relevantLocationAdvantages,
+      relevantMajorAdvice: enrichment.majorSpecificAdvice || "",
+      profileConnections,
+    },
+  };
+}
+
+function buildComparisonProfileConnections(profileData, majorCategory, schoolName) {
+  const connections = [];
+  const courseSummary = buildMajorRelevantCourseSummary(profileData, profileData.intendedMajor);
+  if (courseSummary.listedRelevantCourses?.length) connections.push(`${formatList(courseSummary.listedRelevantCourses.slice(0, 3))} can support ${profileData.intendedMajor || "the intended major"} fit.`);
+  const activityText = getActivityText(profileData);
+  if (majorCategory === "engineeringCS" && /robot|coding|program|hardware|circuit|engineering|research/.test(activityText)) connections.push(`Technical activities can connect to engineering design, computing, research, or maker culture at ${schoolName}.`);
+  if (majorCategory === "businessSocialScience" && /robot|intern|business|finance|data|lead|policy|debate/.test(activityText)) connections.push(`Activities can be framed through economics, business, operations, data, policy, or decision-making at ${schoolName}.`);
+  if (majorCategory === "lifeSciencesHealth" && /health|bio|research|volunteer|hospital|science|service/.test(activityText)) connections.push(`Science, service, or research activity can support health/life-science fit at ${schoolName}.`);
+  if (majorCategory === "humanitiesArtsMedia" && /film|media|write|art|design|music|theater|journal/.test(activityText)) connections.push(`Creative or communication work can support portfolio/audience fit at ${schoolName}.`);
+  if (profileData.gpa || profileData.sat || profileData.act) connections.push(`Academic profile includes ${[profileData.gpa && `GPA ${profileData.gpa}`, profileData.sat && `SAT ${profileData.sat}`, profileData.act && `ACT ${profileData.act}`].filter(Boolean).join(", ")}.`);
+  return dedupeStrings(connections).slice(0, 4);
+}
+
+function findSuggestedScore(schoolName) {
+  const suggestionState = normalizeSuggestionState(state.suggestedSchools);
+  return [...suggestionState.withinFilters, ...suggestionState.outsideFilters, ...suggestionState.partialMatches].find((item) => item.schoolName === schoolName)?.matchScore || null;
+}
+
+function buildComparisonSummary(a, b) {
+  const compare = (key, delta = 5) => {
+    const aScore = a.scoreBreakdown?.[key];
+    const bScore = b.scoreBreakdown?.[key];
+    if (!Number.isFinite(aScore) || !Number.isFinite(bScore)) return "unknown";
+    if (Math.abs(aScore - bScore) < delta) return "tie";
+    return aScore > bScore ? "schoolA" : "schoolB";
+  };
+  const programA = a.specificEvidence.relevantUndergraduateSchools.length + a.specificEvidence.relevantSignaturePrograms.length + a.specificEvidence.relevantExperientialOpportunities.length + (a.specificEvidence.relevantMajorRankings || []).length;
+  const programB = b.specificEvidence.relevantUndergraduateSchools.length + b.specificEvidence.relevantSignaturePrograms.length + b.specificEvidence.relevantExperientialOpportunities.length + (b.specificEvidence.relevantMajorRankings || []).length;
+  const betterProgramSpecificFit = Math.abs(programA - programB) <= 1 ? "tie" : programA > programB ? "schoolA" : "schoolB";
+  const overallDiff = (a.scoreBreakdown?.finalScore || 0) - (b.scoreBreakdown?.finalScore || 0);
+  return {
+    betterAcademicFit: compare("academicFit"),
+    betterMajorFit: compare("majorFit"),
+    betterPreferenceFit: compare("preferenceFit"),
+    betterCostResidencyFit: compare("costResidencyFit"),
+    betterProgramSpecificFit,
+    overallLeaning: Math.abs(overallDiff) < 4 ? "tie" : overallDiff > 0 ? "schoolA" : "schoolB",
+    specificProgramReasons: dedupeStrings([evidenceSentence(a), evidenceSentence(b)]).filter(Boolean),
+    profileSpecificReasons: dedupeStrings([...a.specificEvidence.profileConnections, ...b.specificEvidence.profileConnections]).slice(0, 4),
+    tradeoffs: dedupeStrings([...a.tradeoffs.slice(0, 2), ...b.tradeoffs.slice(0, 2)]).slice(0, 4),
+    dataLimitations: dedupeStrings([...a.dataNotes, ...b.dataNotes]).slice(0, 3),
+  };
+}
+
+function evidenceSentence(item) {
+  const names = getCompactProgramEvidence(item, 3);
+  if (names.length) return `${item.name}: ${formatList(names)}.`;
+  if (item.specificEvidence.relevantMajorRankings?.length) return `${item.name}: ${formatList(item.specificEvidence.relevantMajorRankings.slice(0, 2))}.`;
+  return "";
+}
+
+function getComparisonProfileLabel(profileData) {
+  return profileData.intendedMajor ? `${profileData.intendedMajor} profile` : "current profile";
+}
+
+function cleanComparisonTradeoff(line) {
+  return cleanComparisonLine(line)
+    .replace(/^the intended major is not one of the strongest programs currently listed in the app's school profile for ([^.]+)\./i, "An intended major is not selected, so program-specific comparison is limited for $1.")
+    .replace(/\.?\s*That does not mean the school is a bad option, but this report has less evidence of program-specific fit from the current school data\.?/gi, ". Program-specific data is more limited in current Collegia data.")
+    .replace(/^Main tradeoff:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function generateComparisonRecommendation(comparisonData, profileData, preferences) {
+  const { schoolA, schoolB, comparisonSummary } = comparisonData;
+  const leaning = comparisonSummary.overallLeaning;
+  const programLean = comparisonSummary.betterProgramSpecificFit;
+  const winner = leaning === "schoolA" ? schoolA : leaning === "schoolB" ? schoolB : programLean === "schoolA" ? schoolA : programLean === "schoolB" ? schoolB : null;
+  const other = winner?.schoolId === schoolA.schoolId ? schoolB : winner?.schoolId === schoolB.schoolId ? schoolA : null;
+  const profileLabel = getComparisonProfileLabel(profileData);
+  const opening = leaning === "tie" && winner
+    ? `This comparison is close overall for the ${profileLabel}, with ${winner.name} showing a stronger program-specific edge in current Collegia data.`
+    : winner
+    ? `${winner.name} looks like the stronger fit for the ${profileLabel} based on current Collegia data.`
+    : `This comparison looks close for the ${profileLabel} based on current Collegia data.`;
+  const evidence = winner ? buildWinnerEvidenceSentence(winner, other, profileData) : buildTieEvidenceSentence(schoolA, schoolB);
+  const profileReason = comparisonSummary.profileSpecificReasons[0] || "";
+  const usefulTradeoff = comparisonSummary.tradeoffs.find((item) => !/course rigor details are limited/i.test(item)) || comparisonSummary.tradeoffs[0];
+  const tradeoff = usefulTradeoff ? `Main tradeoff: ${cleanComparisonTradeoff(usefulTradeoff)}` : `The main tradeoff is preference fit, cost, and campus environment; verify each school against what matters most before deciding.`;
+  const limitation = comparisonSummary.dataLimitations[0] ? `This comparison is limited by available app data: ${comparisonSummary.dataLimitations[0]}` : "";
+  return [opening, evidence, profileReason, tradeoff, limitation, `Disclaimer: ${DISCLAIMER_TEXT}`].filter(Boolean).join(" ");
+}
+
+function generateShortComparisonRecommendation(firstSchool, secondSchool, profileData, preferences) {
+  const comparisonData = buildCompactSchoolComparison(profileData, preferences, firstSchool, secondSchool);
+  const { schoolA, schoolB, comparisonSummary } = comparisonData;
+  const programLean = comparisonSummary.betterProgramSpecificFit;
+  const scoreLean = comparisonSummary.overallLeaning;
+  const winner = scoreLean === "schoolA" ? schoolA : scoreLean === "schoolB" ? schoolB : programLean === "schoolA" ? schoolA : programLean === "schoolB" ? schoolB : null;
+  const other = winner?.schoolId === schoolA.schoolId ? schoolB : winner?.schoolId === schoolB.schoolId ? schoolA : null;
+  const profileLabel = getComparisonProfileLabel(profileData);
+  const opener = winner
+    ? `${winner.name} looks like the stronger fit for the ${profileLabel} based on current Collegia data.`
+    : `This comparison looks close for the ${profileLabel} based on current Collegia data.`;
+  const evidence = winner ? buildWinnerEvidenceSentence(winner, other, profileData) : buildTieEvidenceSentence(schoolA, schoolB);
+  const tradeoff = cleanComparisonTradeoff((winner?.tradeoffs || comparisonSummary.tradeoffs || []).find((item) => !/course rigor details/i.test(item)) || comparisonSummary.tradeoffs?.[0] || "The deciding factor may be cost, location, and campus environment.");
+  return `${opener} ${evidence} Main tradeoff: ${tradeoff} Disclaimer: ${DISCLAIMER_TEXT}`;
+}
+
+function buildWinnerEvidenceSentence(winner, other, profileData) {
+  const programs = getCompactProgramEvidence(winner, 3);
+  const rankings = (winner.specificEvidence.relevantMajorRankings || []).slice(0, 2);
+  if (programs.length && rankings.length) return `${winner.name} has more specific evidence for ${profileData.intendedMajor || "the major"}, including ${formatList(programs)} and verified context such as ${formatList(rankings)}; rankings are program-strength context, not admissions probability.`;
+  if (programs.length) return `${winner.name} has more specific program evidence for ${profileData.intendedMajor || "the major"}, including ${formatList(programs)}${other ? `, compared with less specific current data for ${other.name}` : ""}.`;
+  if (rankings.length) return `${winner.name} has stronger verified ranking context for this major area, including ${formatList(rankings)}, but rankings should not be treated as admissions probability.`;
+  return `${winner.name} scores better across the current major, academic, preference, and cost/residency signals in Collegia.`;
+}
+
+function buildTieEvidenceSentence(schoolA, schoolB) {
+  const aEvidence = evidenceSentence(schoolA);
+  const bEvidence = evidenceSentence(schoolB);
+  if (aEvidence || bEvidence) return `Both schools have useful evidence: ${[aEvidence, bEvidence].filter(Boolean).join(" ")}`;
+  return `Neither school has a decisive advantage from the current program-specific data, so preference fit and cost may drive the decision.`;
 }
 
 function generateSuggestedSchools(profileData, collegePreferences, schoolList) {
@@ -1791,14 +2259,13 @@ function getMatchLevel(score) {
 function analyzeHardFilters(school, preferences) {
   const missed = [];
   const matched = [];
-  const strictLocation = preferences.strictLocationFilters !== false;
   const preferredRegions = normalizeAnyArray(preferences.preferredRegions);
   const states = normalizeAnyArray(preferences.preferredStates);
-  if (strictLocation && preferredRegions.length) {
+  if (preferredRegions.length) {
     if (preferredRegions.some((region) => schoolMatchesPreferredRegion(school, region))) matched.push("Selected region");
     else missed.push(`outside your selected ${formatList(preferredRegions)} region preference`);
   }
-  if (strictLocation && states.length) {
+  if (states.length) {
     if (states.includes(school.state)) matched.push("Selected state");
     else missed.push(`outside your selected ${formatList(states)} state preference`);
   }
@@ -1837,7 +2304,7 @@ function scoreSuggestedSchool(profileData, preferences, school, weights) {
   const enrichment = getRelevantSchoolEnrichment(schoolProfile, profileData.intendedMajor, majorCategory);
   const majorAlignment = getMajorSchoolFitAlignment(profileData.intendedMajor, majorCategory, schoolProfile);
   const academic = calculateAcademicRangeFit(profileData, school);
-  const preference = calculatePreferenceFit(preferences, school);
+  const preference = calculatePreferenceFit(preferences, school, profileData);
   const environment = calculateEnvironmentFit(preferences, school);
   const cost = calculateCostResidencyFit(profileData, preferences, school);
   const hardFilters = analyzeHardFilters(school, preferences);
@@ -1969,28 +2436,78 @@ function calculateAcademicRangeFit(profileData, schoolData) {
   };
 }
 
-function calculatePreferenceFit(preferences, school) {
+function calculatePreferenceFit(preferences, school, profileData = {}) {
   const reasons = [];
   const tradeoffs = [];
   const tags = [];
   let score = 55;
-  const preferredRegions = normalizeAnyArray(preferences.preferredRegions);
-  const regionMatch = preferredRegions.length ? preferredRegions.some((region) => schoolMatchesPreferredRegion(school, region)) : true;
-  if (preferredRegions.length && regionMatch) { score += 10; reasons.push(`${school.name} matches the selected regional preference.`); tags.push("Region fit"); }
-  else if (preferredRegions.length && preferences.strictLocationFilters === false) { score -= 14; tradeoffs.push(`${school.name} is outside the selected region preference.`); }
-  const states = normalizeAnyArray(preferences.preferredStates);
-  if (states.length && states.includes(school.state)) { score += 10; reasons.push(`${school.name} is in a preferred state.`); tags.push("State fit"); }
-  else if (states.length && preferences.strictLocationFilters === false) { score -= 12; tradeoffs.push(`${school.name} is outside the selected state preference.`); }
-  if (preferences.publicPrivatePreference && preferences.publicPrivatePreference !== "Any") {
-    if (school.type === preferences.publicPrivatePreference) { score += 6; reasons.push(`It matches the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
-    else { score -= 16; tradeoffs.push(`It does not match the ${preferences.publicPrivatePreference.toLowerCase()} school preference.`); }
-  }
   const size = school.size < 8000 ? "Small" : school.size < 20000 ? "Medium" : "Large";
   if (preferences.schoolSizePreference && preferences.schoolSizePreference !== "Any") {
     if (size === preferences.schoolSizePreference) { score += 10; reasons.push(`Its ${size.toLowerCase()} undergraduate size matches the preference.`); }
     else { score -= 12; tradeoffs.push(`Its ${size.toLowerCase()} undergraduate size may not match the selected size preference.`); }
   }
-  return { score: clampScore(score), reasons, tradeoffs, tags, note: reasons[0] || "Preference fit is based on selected region, state, public/private, and size preferences." };
+  const distance = calculateDistancePreferenceMatch(school, preferences, profileData);
+  score += distance.delta;
+  reasons.push(...distance.reasons);
+  tradeoffs.push(...distance.tradeoffs);
+  if (distance.tag) tags.push(distance.tag);
+  return { score: clampScore(score), reasons, tradeoffs, tags, note: reasons[0] || "Preference fit is based on selected school size and distance preferences." };
+}
+
+function calculateDistancePreferenceMatch(school, preferences, profileData = {}) {
+  const choice = preferences.distanceFromHomePreference || "Any";
+  if (!choice || choice === "Any" || choice === "No preference") return { delta: 0, reasons: [], tradeoffs: [], tag: "" };
+  const homeState = inferProfileState(profileData);
+  if (!homeState) {
+    return {
+      delta: 0,
+      reasons: [],
+      tradeoffs: ["Add your location in My Profile to use distance-based suggestions."],
+      tag: "",
+    };
+  }
+  const sameState = normalizeText(homeState) === normalizeText(school.state);
+  const homeRegion = inferRegionFromState(homeState);
+  const sameRegion = homeRegion && school.region === homeRegion;
+  const nearby = sameState || sameRegion || NEARBY_STATES[homeState]?.includes(school.state);
+  if (choice === "Close to home") {
+    if (sameState || nearby) return { delta: 10, reasons: [`${school.name} appears close to home based on state/region approximation.`], tradeoffs: [], tag: "Distance fit" };
+    return { delta: -12, reasons: [], tradeoffs: [`${school.name} may not match the close-to-home preference based on state/region approximation.`], tag: "" };
+  }
+  if (choice === "Driving distance") {
+    if (nearby) return { delta: 8, reasons: [`${school.name} appears within driving-distance logic based on nearby state/region approximation.`], tradeoffs: [], tag: "Distance fit" };
+    return { delta: -10, reasons: [], tradeoffs: [`${school.name} may be outside a practical driving-distance preference; exact distance data is not available.`], tag: "" };
+  }
+  if (choice === "Far from home") {
+    if (!sameRegion) return { delta: 8, reasons: [`${school.name} matches the far-from-home preference by being outside the home region.`], tradeoffs: [], tag: "Distance fit" };
+    return { delta: -8, reasons: [], tradeoffs: [`${school.name} is in the home region, so it may not match the far-from-home preference.`], tag: "" };
+  }
+  if (choice === "Out of state") {
+    if (!sameState) return { delta: 8, reasons: [`${school.name} matches the out-of-state preference.`], tradeoffs: [], tag: "Distance fit" };
+    return { delta: -10, reasons: [], tradeoffs: [`${school.name} is in the student's home state, so it does not match the out-of-state preference.`], tag: "" };
+  }
+  return { delta: 0, reasons: [], tradeoffs: [], tag: "" };
+}
+
+function inferProfileState(profileData = {}) {
+  if (profileData.stateResidency) return profileData.stateResidency;
+  const location = String(profileData.location || "");
+  const parts = location.split(",").map((part) => part.trim()).filter(Boolean);
+  const tail = parts.at(-1) || "";
+  if (US_STATES.includes(tail)) return tail;
+  const stateFromAbbrev = STATE_NAMES[tail.toUpperCase()];
+  if (stateFromAbbrev) return stateFromAbbrev;
+  return US_STATES.find((stateName) => normalizeText(location).includes(normalizeText(stateName))) || "";
+}
+
+function inferRegionFromState(stateName) {
+  const sampleSchool = schools.find((school) => normalizeText(school.state) === normalizeText(stateName));
+  if (sampleSchool) return sampleSchool.region;
+  if (["Maine", "New Hampshire", "Vermont", "Massachusetts", "Rhode Island", "Connecticut", "New York", "New Jersey", "Pennsylvania"].includes(stateName)) return "Northeast";
+  if (["California", "Washington", "Oregon"].includes(stateName)) return "West";
+  if (["Illinois", "Michigan", "Wisconsin", "Indiana", "Ohio"].includes(stateName)) return "Midwest";
+  if (["Texas", "Florida", "Georgia", "North Carolina", "Virginia", "Tennessee", "Louisiana"].includes(stateName)) return "South";
+  return "";
 }
 
 function calculateEnvironmentFit(preferences, school) {
@@ -2029,6 +2546,18 @@ function calculateEnvironmentFit(preferences, school) {
   if (preferences.sportsImportance === "High" && /NCAA Division I|Big Ten|SEC|ACC|Big 12|Ivy League/i.test(school.sports || "")) {
     score += 6;
     reasons.push("Sports/school-spirit context appears relevant from the app data.");
+  }
+  if (preferences.campusSafetyImportance === "High") {
+    if (campusMetrics.safetyContext) {
+      score += 5;
+      reasons.push(`Campus safety context is listed as: ${campusMetrics.safetyContext}.`);
+    } else {
+      tradeoffs.push("Campus safety importance is high, but verified safety context is limited in the current app data.");
+    }
+  }
+  if (preferences.qualityOfLifeImportance === "High" && (campusMetrics.qualityOfLifeTags || []).length) {
+    score += 5;
+    reasons.push(`Quality-of-life context includes ${formatList((campusMetrics.qualityOfLifeTags || []).slice(0, 2))}.`);
   }
   return { score: clampScore(score), reasons, tradeoffs };
 }
@@ -2352,6 +2881,8 @@ function renderProfile() {
             ${majorSelector()}
           </div>
         </section>
+
+        ${renderCollegePreferencesCard()}
 
         <section class="panel profile-section-card profile-card-full">
           <div class="section-head"><div><h2>Coursework & Rigor</h2><p class="muted">Add AP, IB, Honors, Dual Enrollment, and custom advanced coursework.</p></div></div>
@@ -4275,15 +4806,6 @@ function bindEvents() {
     });
   });
 
-  document.querySelectorAll("[data-preference-check]").forEach((input) => {
-    input.addEventListener("change", () => {
-      state.collegePreferences[input.dataset.preferenceCheck] = input.checked;
-      state.suggestedSchools = [];
-      save();
-      render();
-    });
-  });
-
   document.querySelectorAll("[data-pref-array]").forEach((button) => button.addEventListener("click", () => {
     const key = button.dataset.prefArray;
     const value = button.dataset.prefValue;
@@ -4325,6 +4847,13 @@ function bindEvents() {
     state.suggestedSchools = generateSuggestedSchools(getProfileData(), state.collegePreferences, schools);
     save();
     render();
+  });
+
+  document.querySelector("[data-edit-preferences]")?.addEventListener("click", () => {
+    state.tab = "profile";
+    save();
+    render();
+    setTimeout(() => document.querySelector("#college-preferences")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   });
 
   document.querySelector("[data-reviewer-school]")?.addEventListener("change", (event) => {
@@ -4456,6 +4985,32 @@ function bindEvents() {
     render();
   }));
 
+  document.querySelectorAll("[data-compare-select]").forEach((selectEl) => {
+    selectEl.addEventListener("change", () => {
+      state.comparison[selectEl.dataset.compareSelect] = selectEl.value;
+      state.comparison.showRecommendation = false;
+      save();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-compare-school]").forEach((button) => button.addEventListener("click", () => {
+    const id = button.dataset.compareSchool;
+    state.comparison.schoolA = id;
+    if (state.comparison.schoolB === id) state.comparison.schoolB = "";
+    state.comparison.showRecommendation = false;
+    state.tab = "compare";
+    save();
+    render();
+  }));
+
+  document.querySelector("[data-analyze-comparison]")?.addEventListener("click", () => {
+    if (!state.comparison.schoolA || !state.comparison.schoolB || state.comparison.schoolA === state.comparison.schoolB) return;
+    state.comparison.showRecommendation = true;
+    save();
+    render();
+  });
+
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", () => {
     state.selected = null;
     render();
@@ -4550,6 +5105,14 @@ function bindEvents() {
     save();
     render();
   });
+
+  document.onkeydown = (event) => {
+    if (event.key !== "Escape") return;
+    if (state.selected) {
+      state.selected = null;
+      render();
+    }
+  };
 
 }
 

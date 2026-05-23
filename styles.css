@@ -1428,6 +1428,10 @@ h2 {
   margin-top: 14px;
 }
 
+.profile-preference-grid {
+  margin-top: 0;
+}
+
 .preference-chip-field {
   align-items: stretch;
 }
@@ -1441,6 +1445,61 @@ h2 {
 
 .suggested-actions {
   margin-top: 14px;
+}
+
+.compare-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.compare-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.compare-page-layout {
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+}
+
+.compare-picker-panel {
+  width: min(760px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.compare-analyze-actions {
+  justify-content: center;
+}
+
+.compare-analyze-actions .btn {
+  min-width: 180px;
+}
+
+.selected-compare-line {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+  text-align: center;
+}
+
+.comparison-recommendation {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #b9dcd6;
+  border-radius: 10px;
+  background: #f1fbf8;
+}
+
+.comparison-recommendation h3,
+.comparison-recommendation p {
+  margin: 0;
 }
 
 .check-row {
@@ -1622,6 +1681,7 @@ h2 {
   .layout-2,
   .preference-grid,
   .suggestion-grid,
+  .compare-controls,
   .profile-grid,
   .profile-course-grid,
   .profile-experience-grid,
@@ -1663,6 +1723,7 @@ h2 {
     position: static;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
 }
 
 @media (max-width: 640px) {
